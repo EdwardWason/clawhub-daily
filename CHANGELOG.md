@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to **clawhub-daily** will be documented in this file.
 
