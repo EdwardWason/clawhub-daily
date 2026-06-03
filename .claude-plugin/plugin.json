@@ -1,0 +1,63 @@
+﻿{
+  "name": "clawhub-daily",
+  "description": "Daily ClawHub Skill insights: 200 skills scanned, 4-dimension rotation, 7 pain-points, 10-day dedup, multi-channel push (Lark/Feishu/IMA/Local)",
+  "version": "1.0.0",
+  "author": {
+    "name": "clawhub-daily contributors"
+  },
+  "homepage": "https://github.com/EdwardWason/clawhub-daily",
+  "repository": "https://github.com/EdwardWason/clawhub-daily.git",
+  "license": "MIT-0",
+  "keywords": [
+    "recommendation",
+    "skill-discovery",
+    "clawhub",
+    "feishu",
+    "lark",
+    "ima",
+    "scheduled-task",
+    "0-token",
+    "ai-skills",
+    "bilingual"
+  ],
+  "tags": [
+    "productivity",
+    "discovery",
+    "automation"
+  ],
+  "platforms": [
+    "qclaw",
+    "WorkBuddy",
+    "OpenClaw",
+    "Hermes",
+    "Trae SOLO",
+    "pure-script"
+  ],
+  "modes": [
+    "interactive",
+    "cron"
+  ],
+  "triggers": [
+    "每日推荐",
+    "ClawHub 日报",
+    "今天有什么好 Skill",
+    "帮我推荐技能",
+    "扫描 ClawHub"
+  ],
+  "categories": [
+    "productivity",
+    "discovery",
+    "automation"
+  ],
+  "requirements": {
+    "python": ">=3.8",
+    "packages": [
+      "requests>=2.28.0"
+    ]
+  },
+  "entry_points": {
+    "interactive": "SKILL.md",
+    "cron": "references/prompt-templates.md"
+  },
+  "skills": ["./"]
+}
