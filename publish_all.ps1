@@ -114,11 +114,35 @@ Get-ChildItem -Path $SkillDir -Recurse -File | ForEach-Object {
 Log ("[ZIP] Including {0} files:" -f $filesToZip.Count)
 foreach ($line in $includeLog) { Log $line }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($SkillDir, $ZipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+
+# Use TEMP path to avoid Git/AV file-locking on $SkillDir
+$tmpDirName = "clawhub_zip_" + [Guid]::NewGuid().ToString("N")
+$tmpZipDir = Join-Path $env:TEMP $tmpDirName
+New-Item -ItemType Directory -Path $tmpZipDir -Force | Out-Null
+$tmpZip = Join-Path $tmpZipDir "clawhub-daily-v1.0.1.zip"
+if (Test-Path $tmpZip) { Remove-Item $tmpZip -Force }
+
+# CreateFromDirectory with retry (Windows file lock is intermittent)
+$maxRetries = 5
+$retryDelay = 2
+$created = $false
+for ($i = 1; $i -le $maxRetries; $i++) {
+    try {
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($SkillDir, $tmpZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+        $created = $true
+        break
+    } catch {
+        Log ("[ZIP] CreateFromDirectory attempt {0}/{1} failed: {2}" -f $i, $maxRetries, $_.Exception.Message) Yellow
+        Start-Sleep -Seconds $retryDelay
+    }
+}
+if (-not $created) {
+    Log "[ZIP] FATAL: could not create zip after $maxRetries attempts" Red
+    exit 1
+}
 
 # Remove excluded entries from zip
-$tempZip = "$ZipPath.tmp"
-$zip = [System.IO.Compression.ZipFile]::Open($ZipPath, "Update")
+$zip = [System.IO.Compression.ZipFile]::Open($tmpZip, "Update")
 $entriesToDelete = @()
 foreach ($entry in $zip.Entries) {
     foreach ($d in $excludeDirs) {
@@ -137,8 +161,20 @@ foreach ($entry in $zip.Entries) {
 foreach ($e in $entriesToDelete) { $e.Delete() }
 $zip.Dispose()
 
+# Move final zip to SkillDir (so the GitHub upload step can read it)
+if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
+Move-Item $tmpZip $ZipPath -Force
+Remove-Item $tmpZipDir -Recurse -Force -ErrorAction SilentlyContinue
+
+# Sanity: verify zip has the expected number of entries
+$verifyZip = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+$zipEntryCount = $verifyZip.Entries.Count
+$verifyZip.Dispose()
 $zipSize = (Get-Item $ZipPath).Length
-Log ("[ZIP] Created: {0} ({1:N0} bytes, {2} entries)" -f $ZipPath, $zipSize, (Get-ChildItem $ZipPath).Count) Green
+Log ("[ZIP] Created: {0} ({1:N0} bytes, {2} entries)" -f $ZipPath, $zipSize, $zipEntryCount) Green
+if ($zipEntryCount -ne $filesToZip.Count) {
+    Log ("[ZIP] WARNING: expected {0} entries but got {1}!" -f $filesToZip.Count, $zipEntryCount) Red
+}
 
 # ============================================================
 # STEP 2: Publish to GitHub
