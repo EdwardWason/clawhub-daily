@@ -62,35 +62,57 @@ if ($CLAWHUB_TOKEN) { Log ("[ENV] OK CLAWHUB_TOKEN loaded (len: {0})" -f $CLAWHU
 else { Log "[ENV] MISSING CLAWHUB_TOKEN" Red }
 
 # ============================================================
-# STEP 1: Build zip (excluding .git, data, .env.local, __pycache__)
+# STEP 1: Build zip (excluding sensitive/runtime files)
 # ============================================================
 Log "`n========== 0. Build skill zip ==========" Cyan
 
-$ZipPath = Join-Path $SkillDir "clawhub-daily-v1.0.0.zip"
+$ZipPath = Join-Path $SkillDir "clawhub-daily-v1.0.1.zip"
 if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
 
-$excludeDirs = @(".git", "data", "__pycache__", ".venv", "node_modules", "logs")
-$excludeFiles = @(".env.local", "*.pyc", "*.log")
+# IMPORTANT: keep this list comprehensive.  Anything here MUST NOT be in the public release.
+# - Directories: source control, runtime data, build artifacts, IDE/cache, venv
+# - Files: env/credential files, logs (any extension), pyc, debug/temp scripts starting with _
+$excludeDirs  = @(".git", "data", "__pycache__", ".venv", "node_modules", "logs", ".idea", ".vscode", "dist", "build")
+$excludeFiles = @(".env", ".env.local", ".env.*", "*.log", "*.pyc", "*.tmp", "*.bak", "*.swp", "_*.ps1", "_*.sh", "_*.py", "_*.md")
 
-function Should-Exclude($path) {
+function Should-Exclude($relPath) {
+    if (-not $relPath) { return $true }
+    # Normalize to forward slashes for consistent matching
+    $norm = $relPath -replace "\\", "/"
     foreach ($d in $excludeDirs) {
-        if ($path -like "*\$d\*" -or $path -like "$d") { return $true }
+        # Match: at start (".git/..."), or anywhere with slashes ("/data/...")
+        if ($norm -eq $d) { return $true }
+        if ($norm.StartsWith($d + "/")) { return $true }
+        if ($norm.Contains("/" + $d + "/")) { return $true }
     }
     foreach ($f in $excludeFiles) {
-        if ($path -like $f) { return $true }
+        # Direct match (exact filename) or wildcard match against basename
+        $base = Split-Path $norm -Leaf
+        if ($f -notmatch '[\*\?\[]') {
+            # Literal pattern
+            if ($base -eq $f) { return $true }
+        } else {
+            # Wildcard pattern
+            if ($base -like $f) { return $true }
+        }
     }
     return $false
 }
+
+# Debug-only list of files that WILL be included
+$includeLog = @()
 
 $filesToZip = @()
 Get-ChildItem -Path $SkillDir -Recurse -File | ForEach-Object {
     $rel = $_.FullName.Substring($SkillDir.Length + 1)
     if (-not (Should-Exclude $rel)) {
         $filesToZip += $_
+        $includeLog += ("  + {0}  ({1} bytes)" -f $rel, $_.Length)
     }
 }
 
-Log ("[ZIP] Including {0} files ..." -f $filesToZip.Count)
+Log ("[ZIP] Including {0} files:" -f $filesToZip.Count)
+foreach ($line in $includeLog) { Log $line }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($SkillDir, $ZipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
@@ -138,10 +160,23 @@ if (-not $SkipGitHub) {
             "User-Agent"    = "clawhub-daily-publisher"
         }
 
-        # 1.1 Check or create repo
+        # 1.1 Check or create repo (use try/catch for proper 404 detection)
         Log "[1/6] Checking repo $Owner/$Repo ..."
-        $repoCheck = Invoke-RestMethod -Uri "$ApiBase/repos/$Owner/$Repo" -Headers $Headers -Method Get
-        if ($LASTEXITCODE -ne 0 -or $repoCheck.message) {
+        $repoExists = $false
+        try {
+            $repoCheck = Invoke-RestMethod -Uri "$ApiBase/repos/$Owner/$Repo" -Headers $Headers -Method Get
+            if ($repoCheck.html_url) { $repoExists = $true }
+        } catch {
+            $code = $_.Exception.Response.StatusCode.value__
+            if ($code -ne 404) {
+                Log ("[1/6] Repo check error: {0} {1}" -f $code, $_.Exception.Message) Red
+                $ghOk = $false
+            }
+        }
+
+        if ($repoExists) {
+            Log ("[1/6] Repo exists: {0}" -f $repoCheck.html_url) Green
+        } elseif ($ghOk) {
             Log "[1/6] Repo not found, creating ..." Yellow
             $body = @{
                 name        = $Repo
@@ -149,15 +184,30 @@ if (-not $SkipGitHub) {
                 private     = $false
                 license     = "MIT-0"
             } | ConvertTo-Json
-            $resp = Invoke-RestMethod -Uri "$ApiBase/user/repos" -Headers $Headers -Method Post -Body $body -ContentType "application/json"
-            if ($resp.html_url) {
-                Log ("[1/6] Repo created: {0}" -f $resp.html_url) Green
-            } else {
-                Log ("[1/6] Repo create failed: {0}" -f ($resp.message -join ", ")) Red
-                $ghOk = $false
+            try {
+                $resp = Invoke-RestMethod -Uri "$ApiBase/user/repos" -Headers $Headers -Method Post -Body $body -ContentType "application/json"
+                if ($resp.html_url) {
+                    Log ("[1/6] Repo created: {0}" -f $resp.html_url) Green
+                } else {
+                    Log ("[1/6] Repo create returned no html_url") Red
+                    $ghOk = $false
+                }
+            } catch {
+                $code = $_.Exception.Response.StatusCode.value__
+                if ($code -eq 422) {
+                    # 422 = name exists (race condition: another run created it)
+                    Log "[1/6] Repo already exists (422), continuing ..." Yellow
+                } else {
+                    $bodyText = ""
+                    try {
+                        $s = $_.Exception.Response.GetResponseStream()
+                        $rd = New-Object System.IO.StreamReader($s)
+                        $bodyText = $rd.ReadToEnd()
+                    } catch {}
+                    Log ("[1/6] Repo create failed: {0} {1}" -f $code, $bodyText) Red
+                    $ghOk = $false
+                }
             }
-        } else {
-            Log ("[1/6] Repo exists: {0}" -f $repoCheck.html_url) Green
         }
 
         if ($ghOk) {
@@ -198,50 +248,23 @@ if (-not $SkipGitHub) {
             # 1.3 Prepare release notes
             Log "[3/6] Preparing release notes ..."
             # 1.4 Create release
-            Log "[4/6] Creating v1.0.0 release ..."
+            Log "[4/6] Creating v1.0.1 release ..."
             $releaseBody = @"
-# ClawHub Daily v1.0.0 - Initial Release
+# ClawHub Daily v1.0.1 - Security Fix
 
-> Daily scan of ClawHub global AI Agent Skill marketplace, multi-dimension curated briefing, auto-push to Feishu / IMA / local.
+> **v1.0.0 was withdrawn** because the published zip accidentally included a debug script containing a credential string. **v1.0.1 is the safe release.**
 
-## Highlights
+## What changed from v1.0.0
 
-### Real data, zero fabrication
-- Direct ClawHub Convex API call (wry-manatee-359.convex.cloud), fetch Top 200 Skills
-- Richer fields than HTML parsing (installs_current, capability_tags, etc.)
-- 0 token consumption (no LLM)
+- **Removed** debug scripts and local run logs from the published zip
+- **Hardened** zip exclude list to cover all sensitive/runtime files
+- **No** changes to skill behavior, scan logic, or push channels
 
-### 4-dimension rotation
-- D1 trending (hot)
-- D2 quality (well-reviewed)
-- D3 newcomers (rising stars)
-- D4 panorama (community discussion)
-- Date % 4 auto-selects, avoids single-dimension monotony
+## What you need to do
 
-### 7 pain-point library
-- Automation / Dev tools / Content / Data scraping / AI augmentation / Chinese / Finance
-- Keyword match + weighted scoring
-
-### 10-day dedup
-- Local JSON files, 0 database dependency
-- 10-day rolling window = 5 cycles to cover 200 Skills
-- Resilient: single-file read failure does not break global
-
-### Chinese briefing (zero-token)
-- chinese_one_liner auto-assembles
-- English original kept in <details> for precision
-- 0 token cost, predictable output
-
-### Multi-channel push
-- Feishu cloud doc + 200-400 char card message
-- IMA knowledge base (CLI primary + HTTP API fallback)
-- Local Markdown (default on)
-
-## Security
-
-- Zero hard-coded credentials (config.json or env vars)
-- MIT-0 License (ClawHub mandatory)
-- .gitignore isolates runtime data and credentials
+1. **Revoke** any GitHub PAT that you may have shared with the author (if you downloaded v1.0.0 zip)
+2. **Delete** any local copies of v1.0.0 zip
+3. **Use** v1.0.1 zip below
 
 ## Quick start
 
@@ -268,9 +291,11 @@ python clawhub_daily_executor.py
 - [CONTRIBUTING](https://github.com/EdwardWason/clawhub-daily/blob/main/docs/CONTRIBUTING.md) - Contribution guide
 - [PUBLISHING_GUIDE](https://github.com/EdwardWason/clawhub-daily/blob/main/docs/PUBLISHING_GUIDE.md) - Publish guide
 
-## Asset
+## Naming note
 
-clawhub-daily-v1.0.0.zip - Full skill pack (excluding .git, data/, .env.local), ready to extract and publish to ClawHub or other platforms.
+- **GitHub repo**: `clawhub-daily` (EdwardWason/clawhub-daily)
+- **ClawHub slug**: `skill-daily` (ClawHub protects `clawhub-` namespace; slug is locked once published)
+- Both names refer to the same skill.
 
 ## License
 
@@ -278,9 +303,9 @@ MIT-0 - clawhub-daily contributors
 "@
 
             $releasePayload = @{
-                tag_name         = "v1.0.0"
+                tag_name         = "v1.0.1"
                 target_commitish = "main"
-                name             = "v1.0.0 - Initial Release"
+                name             = "v1.0.1 - Security Fix (withdraws v1.0.0)"
                 body             = $releaseBody
                 draft            = $false
                 prerelease       = $false
@@ -292,15 +317,19 @@ MIT-0 - clawhub-daily contributors
 
                 # 1.5 Upload zip as release asset
                 Log "[5/6] Uploading zip asset ..."
-                $uploadUrl = $release.upload_url -replace '\{.*\}', ''
-                $fileName = "clawhub-daily-v1.0.0.zip"
-                $assetUrl = "$uploadUrl?name=$fileName"
+                # upload_url is "https://uploads.github.com/.../assets{?name,label}" - strip {...}
+                $uploadUrl = $release.upload_url
+                $braceIdx = $uploadUrl.IndexOf('{')
+                if ($braceIdx -gt 0) { $uploadUrl = $uploadUrl.Substring(0, $braceIdx) }
+                $fileName = "clawhub-daily-v1.0.1.zip"
+                $assetUrl = $uploadUrl + "?name=" + $fileName
                 $assetHeaders = @{
                     "Authorization" = "token $GH_TOKEN"
                     "Content-Type"  = "application/zip"
+                    "Accept"        = "application/vnd.github.v3+json"
                 }
                 $fileBytes = [System.IO.File]::ReadAllBytes($ZipPath)
-                $null = Invoke-RestMethod -Uri $assetUrl -Method Post -Headers $assetHeaders -Body $fileBytes
+                $null = Invoke-RestMethod -Uri $assetUrl -Method Post -Headers $assetHeaders -Body $fileBytes -TimeoutSec 60
                 Log ("[5/6] Zip uploaded as asset: {0} ({1:N0} bytes)" -f $fileName, $fileBytes.Length) Green
 
                 Log ("[6/6] GitHub publish complete: {0}" -f $release.html_url) Green
@@ -340,7 +369,7 @@ if (-not $SkipClawHub) {
         }
 
         # 2.2 Version (hardcoded; plugin.json may have encoding issues)
-        $Version = "1.0.0"
+        $Version = "1.0.1"
         Log ("[2/4] Using version: {0}" -f $Version)
 
         # 2.3 Publish (with --slug to override protected namespace)
@@ -373,7 +402,7 @@ if (Test-Path $ZipPath) {
 # SUMMARY
 # ============================================================
 Log "`n========== SUMMARY ==========" Cyan
-if ($ghOk) { Log "GitHub:   OK  https://github.com/$Owner/$Repo/releases/tag/v1.0.0" Green }
+if ($ghOk) { Log "GitHub:   OK  https://github.com/$Owner/$Repo/releases/tag/v1.0.1" Green }
 else { Log "GitHub:   FAILED" Red }
 if ($chOk) { Log "ClawHub:  OK" Green }
 else { Log "ClawHub:  FAILED" Red }
