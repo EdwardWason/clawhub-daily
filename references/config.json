@@ -1,0 +1,16 @@
+{
+  "_comment": "ClawHub Daily 配置文件（首次安装后请填写凭证）",
+  "_setup_url": "https://open.feishu.cn/app",
+  "feishu_app_id": "<your_feishu_app_id>",
+  "feishu_app_secret": "<your_feishu_app_secret>",
+  "feishu_user_open_id": "<your_feishu_user_open_id>",
+  "_feishu_doc": "https://open.feishu.cn/document/home/index",
+  "ima_client_id": "<your_ima_client_id>",
+  "ima_api_key": "<your_ima_api_key>",
+  "ima_kb_id": "<your_ima_kb_id>",
+  "ima_api_endpoint": "<your_ima_api_endpoint_optional>",
+  "_ima_doc": "https://ima.qq.com/ 知识库 ID 获取：打开 IMA 知识库，URL 中的长 ID（约 44 字符）",
+  "_lookback_days_default": 10,
+  "_target_recommendations_default": 10,
+  "_data_dir_default": "data"
+}
