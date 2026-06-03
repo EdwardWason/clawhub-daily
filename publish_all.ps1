@@ -128,7 +128,16 @@ $retryDelay = 2
 $created = $false
 for ($i = 1; $i -le $maxRetries; $i++) {
     try {
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($SkillDir, $tmpZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+        # IMPORTANT: CreateFromDirectory would include ALL files (including .git/, data/),
+        # so we must build the zip manually with the $filesToZip whitelist.
+        # Use ZipFile::Open to create empty archive, then add files one by one.
+        # NOTE: Use integer 1 (ZipArchiveMode.Create) instead of enum - PS 5.1 enum parsing is flaky.
+        $archive = [System.IO.Compression.ZipFile]::Open($tmpZip, 1)  # 1 = Create
+        foreach ($f in $filesToZip) {
+            $rel = $f.FullName.Substring($SkillDir.Length + 1) -replace "\\", "/"
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $f.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+        $archive.Dispose()
         $created = $true
         break
     } catch {
@@ -140,26 +149,6 @@ if (-not $created) {
     Log "[ZIP] FATAL: could not create zip after $maxRetries attempts" Red
     exit 1
 }
-
-# Remove excluded entries from zip
-$zip = [System.IO.Compression.ZipFile]::Open($tmpZip, "Update")
-$entriesToDelete = @()
-foreach ($entry in $zip.Entries) {
-    foreach ($d in $excludeDirs) {
-        if ($entry.FullName -like "$d/*" -or $entry.FullName -like "*/$d/*") {
-            $entriesToDelete += $entry
-            break
-        }
-    }
-    foreach ($f in $excludeFiles) {
-        if ($entry.Name -like $f) {
-            $entriesToDelete += $entry
-            break
-        }
-    }
-}
-foreach ($e in $entriesToDelete) { $e.Delete() }
-$zip.Dispose()
 
 # Move final zip to SkillDir (so the GitHub upload step can read it)
 if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
