@@ -1,11 +1,29 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to **clawhub-daily** will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-06-03
+## [1.0.1] - 2026-06-03 (Security Fix)
+
+### Security (安全修复)
+
+- **🚨 撤回 v1.0.0**：v1.0.0 的 zip asset 误包含调试脚本 `_set_token.ps1`（含真实 GitHub PAT 字符串），已删除 GitHub Release + tag
+- **重写 `publish_all.ps1` 排除规则**：
+  - 修复 `.git/`、`data/` 路径开头边界 bug
+  - 显式排除 `.env*`、`*.log`、`*.pyc`、`*.tmp`、`_*.ps1`/`_*.sh`/`_*.py`/`_*.md` 等临时/敏感文件
+  - dry-run 验证：21 文件 / 52.6 KB（之前 100 文件 / 297 KB）
+- **占位安全网**：publish 后立即列出 zip 内容并搜索 `ghp_` / `clh_` 模式
+
+### Action Required (用户必须操作)
+
+1. **撤销** 之前分享给本作者的 GitHub PAT（任何以 `ghp_` 开头、属于本项目使用的 token）
+2. **删除** 本地下载的 v1.0.0 zip 文件
+3. **使用 v1.0.1** 替代
+4. 审查 https://github.com/settings/security-log 是否有未授权访问
+
+## [1.0.0] - 2026-06-03 [WITHDRAWN - DO NOT USE]
 
 ### Added (新增)
 
