@@ -11,6 +11,7 @@ import json
 import argparse
 import sys
 import time
+import re
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -113,7 +114,7 @@ DIMENSION_CONFIG = {
         "name": "全景",
         "module": "🏆 分类王者",
         "primary_field": "comments",
-        "filter_fn": lambda s: s['comments'] >= 50,
+        "filter_fn": lambda s: s['comments'] >= 1,
         "sort_field": "comments",
         "sort_desc": True,
         "limit": 8,
@@ -122,7 +123,7 @@ DIMENSION_CONFIG = {
 
 
 def match_pain_points(skill):
-    """返回该 Skill 命中的痛点场景"""
+    """返回该 Skill 命中的痛点场景（使用词边界匹配，避免子串误匹配）"""
     text_parts = [
         skill.get('display_name', ''),
         skill.get('summary', ''),
@@ -133,7 +134,13 @@ def match_pain_points(skill):
     matched = []
     for scene, config in PAIN_POINTS_DB.items():
         for kw in config['keywords']:
-            if kw.lower() in text:
+            # Use word boundary matching for keywords >= 3 chars
+            # For short keywords (2 chars), require exact word match (space/punct bounded)
+            if len(kw) <= 2:
+                pattern = r'(?<![a-z0-9])' + re.escape(kw.lower()) + r'(?![a-z0-9])'
+            else:
+                pattern = r'\b' + re.escape(kw.lower()) + r'\b'
+            if re.search(pattern, text):
                 matched.append(scene)
                 break
     return matched
@@ -488,7 +495,9 @@ def main():
 
     # 生成推荐
     recommended = recommend_skills(skills, dimension, lookback_urls, args.target)
-    deduplicated = total_scanned - len(recommended) - sum(1 for s in skills if not DIMENSION_CONFIG[dimension]['filter_fn'](s))
+    # deduplicated = number of candidates that were in the pool but skipped due to dedup
+    pool = [s for s in skills if DIMENSION_CONFIG[dimension]['filter_fn'](s)]
+    deduplicated = len([s for s in pool if s.get('slug', '') in lookback_urls])
     print(f"[Recommend] 推荐 {len(recommended)} 个")
 
     # 生成 Markdown 简报
