@@ -1,7 +1,7 @@
 {
   "name": "clawhub-daily",
-  "description": "Daily ClawHub Skill insights: 200 skills scanned, 4-dimension rotation, 7 pain-points, 10-day dedup, multi-channel push (Lark/Feishu/IMA/Local)",
-  "version": "1.0.3",
+  "description": "Daily ClawHub Skill insights: 200 skills scanned, all-dimension daily recommendation, 7 pain-points, 7-day dedup, multi-channel push (Lark/Feishu/IMA/Local)",
+  "version": "1.0.4",
   "author": {
     "name": "clawhub-daily contributors"
   },
