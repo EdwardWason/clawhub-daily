@@ -81,7 +81,7 @@ PAIN_POINTS_DB = {
     },
 }
 
-# 维度配置
+# 维度配置（每日全维度推荐：trending×2 + quality×1 + newcomers×1 + panorama×2 = 6）
 DIMENSION_CONFIG = {
     "trending": {
         "name": "趋势",
@@ -90,7 +90,7 @@ DIMENSION_CONFIG = {
         "filter_fn": lambda s: s['installs_current'] >= 100,
         "sort_field": "installs_current",
         "sort_desc": True,
-        "limit": 8,
+        "limit": 2,
     },
     "quality": {
         "name": "质量",
@@ -99,7 +99,7 @@ DIMENSION_CONFIG = {
         "filter_fn": lambda s: s['downloads'] >= 1000 and s['star_rate'] >= 0.5,
         "sort_field": "star_rate",
         "sort_desc": True,
-        "limit": 8,
+        "limit": 1,
     },
     "newcomers": {
         "name": "新星",
@@ -108,7 +108,7 @@ DIMENSION_CONFIG = {
         "filter_fn": lambda s: s['age_days'] <= 60 and s['installs_current'] >= 10 and s['stars'] >= 3,
         "sort_field": "installs_current",
         "sort_desc": True,
-        "limit": 8,
+        "limit": 1,
     },
     "panorama": {
         "name": "全景",
@@ -117,7 +117,7 @@ DIMENSION_CONFIG = {
         "filter_fn": lambda s: s['comments'] >= 1,
         "sort_field": "comments",
         "sort_desc": True,
-        "limit": 8,
+        "limit": 2,
     },
 }
 
@@ -156,11 +156,63 @@ def pain_point_score(skill):
 
 
 def get_dimension_by_date(date_str):
-    """根据日期自动决定维度（4 天一个周期）"""
+    """根据日期自动决定维度（4 天一个周期）— 保留兼容，但每日全维度模式下不使用"""
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     epoch_day = (dt - datetime(2026, 1, 1)).days
     dims = ["trending", "quality", "newcomers", "panorama"]
     return dims[epoch_day % 4]
+
+
+def recommend_all_dimensions(skills, lookback_urls):
+    """每日全维度推荐：遍历所有维度，每个维度取 limit 个，合并去重"""
+    all_recommended = []
+    seen_urls = set()
+    dim_stats = {}  # 每个维度的统计
+
+    for dim_key, config in DIMENSION_CONFIG.items():
+        filter_fn = config['filter_fn']
+        sort_field = config['sort_field']
+        limit = config['limit']
+
+        # 1. 过滤
+        candidates = [s for s in skills if filter_fn(s) and not s['is_suspicious']]
+
+        # 2. 排序
+        candidates.sort(key=lambda x: x[sort_field], reverse=config['sort_desc'])
+
+        # 3. 痛点加权 + 去重（跨维度也去重）
+        dim_recs = []
+        for skill in candidates:
+            if skill['url'] in lookback_urls:
+                continue
+            if skill['url'] in seen_urls:
+                continue
+            if len(dim_recs) >= limit:
+                break
+
+            pp_score, matched = pain_point_score(skill)
+            skill_copy = dict(skill)
+            skill_copy['pain_points_matched'] = matched
+            skill_copy['pain_point_score'] = pp_score
+            skill_copy['module'] = config['module']
+            skill_copy['dimension'] = dim_key
+            skill_copy['recommend_reason'] = generate_recommend_reason(skill_copy, dim_key, matched)
+            skill_copy['next_action'] = generate_next_action(skill_copy, matched)
+            skill_copy['chinese_one_liner'] = generate_chinese_one_liner(skill_copy, matched)
+            dim_recs.append(skill_copy)
+            seen_urls.add(skill['url'])
+
+        all_recommended.extend(dim_recs)
+        dim_stats[dim_key] = {
+            "name": config['name'],
+            "module": config['module'],
+            "pool": len(candidates),
+            "recommended": len(dim_recs),
+            "limit": limit,
+        }
+        print(f"  [{dim_key}] 候选 {len(candidates)} → 推荐 {len(dim_recs)}/{limit}")
+
+    return all_recommended, dim_stats
 
 
 def load_recent_recommended(data_dir, lookback_days=10):
@@ -266,14 +318,12 @@ def generate_chinese_one_liner(skill, matched):
     return f"集成 {('、'.join(top_tags))} 等能力，可作为通用工具使用"
 
 
-def generate_markdown(date_str, dimension, recommended, total_scanned, deduplicated):
-    """生成简报 Markdown"""
-    config = DIMENSION_CONFIG[dimension]
-    dim_name = config['name']
+def generate_markdown(date_str, recommended, total_scanned, deduplicated, dim_stats):
+    """生成简报 Markdown（全维度版）"""
 
-    md = f"""# 🦞 ClawHub 每日洞察 | {date_str}（{dim_name}维度）
+    md = f"""# 🦞 ClawHub 每日洞察 | {date_str}
 
-> 📊 数据日期：{date_str} | 🎯 推荐维度：{dim_name} | 📦 扫描数量：{total_scanned} | 🆕 新增推荐：{len(recommended)} | 🚫 已去重：{deduplicated}
+> 📊 数据日期：{date_str} | 📦 扫描数量：{total_scanned} | 🆕 新增推荐：{len(recommended)} | 🚫 已去重：{deduplicated}
 
 ## 🎯 TL;DR
 
@@ -286,29 +336,41 @@ def generate_markdown(date_str, dimension, recommended, total_scanned, deduplica
         if pain_scenes:
             md += f"，其中 **{len(pain_scenes)}** 个场景匹配你的关注：{', '.join(sorted(pain_scenes))}"
 
-    md += "\n\n---\n\n"
+    # 各维度概况
+    md += "\n\n| 维度 | 候选池 | 推荐 |\n|------|--------|------|\n"
+    for dim_key, stats in dim_stats.items():
+        md += f"| {stats['module']} | {stats['pool']} | {stats['recommended']}/{stats['limit']} |\n"
 
-    # 主要推荐模块
-    md += f"## {config['module']}\n\n"
-    for i, r in enumerate(recommended, 1):
-        md += f"### {i}. {r['display_name']}\n\n"
-        md += f"- **作者**: {r['author_display']} (`{r['author_handle']}`)\n"
-        md += f"- **链接**: {r['url']}\n"
-        md += f"- **数据**: ⭐ {r['stars']} | 📥 {r['downloads']} | "
-        md += f"📊 活跃 {r['installs_current']} | 💬 {r['comments']}\n"
-        md += f"- **指标**: 口碑率 {r['star_rate']}% | 活跃度 {r['activity_rate']}%\n"
-        # 中文一句话解读（默认显示）
-        if r.get('chinese_one_liner'):
-            md += f"- **能力解读**: {r['chinese_one_liner']}\n"
-        if r.get('pain_points_matched'):
-            md += f"- **匹配场景**: {', '.join(r['pain_points_matched'])}\n"
-        md += f"- **推荐理由**: {r['recommend_reason']}\n"
-        md += f"- **下一步**: {r['next_action']}\n"
-        # 英文原文摘要作为参考（折叠显示）
-        if r.get('summary'):
-            summary = r['summary'][:200] + ('...' if len(r['summary']) > 200 else '')
-            md += f"- <details><summary>📄 原文摘要（English）</summary>{summary}</details>\n"
-        md += "\n"
+    md += "\n---\n\n"
+
+    # 按维度分组展示
+    by_dim = {}
+    for r in recommended:
+        dim_key = r.get('dimension', 'trending')
+        by_dim.setdefault(dim_key, []).append(r)
+
+    for dim_key in ["trending", "quality", "newcomers", "panorama"]:
+        if dim_key not in by_dim:
+            continue
+        config = DIMENSION_CONFIG[dim_key]
+        md += f"## {config['module']}\n\n"
+        for i, r in enumerate(by_dim[dim_key], 1):
+            md += f"### {i}. [{r['display_name']}]({r['url']})\n\n"
+            md += f"- **作者**: {r['author_display']} (`{r['author_handle']}`)\n"
+            md += f"- **链接**: [{r['url']}]({r['url']})\n"
+            md += f"- **数据**: ⭐ {r['stars']} | 📥 {r['downloads']} | "
+            md += f"📊 活跃 {r['installs_current']} | 💬 {r['comments']}\n"
+            md += f"- **指标**: 口碑率 {r['star_rate']}% | 活跃度 {r['activity_rate']}%\n"
+            if r.get('chinese_one_liner'):
+                md += f"- **能力解读**: {r['chinese_one_liner']}\n"
+            if r.get('pain_points_matched'):
+                md += f"- **匹配场景**: {', '.join(r['pain_points_matched'])}\n"
+            md += f"- **推荐理由**: {r['recommend_reason']}\n"
+            md += f"- **下一步**: {r['next_action']}\n"
+            if r.get('summary'):
+                summary = r['summary'][:200] + ('...' if len(r['summary']) > 200 else '')
+                md += f"- <details><summary>📄 原文摘要（English）</summary>{summary}</details>\n"
+            md += "\n"
 
     # 痛点分组
     md += "\n## 🎯 痛点匹配（按场景分组）\n\n"
@@ -333,12 +395,13 @@ def generate_markdown(date_str, dimension, recommended, total_scanned, deduplica
 
 - **数据源**: ClawHub Convex API
 - **扫描数量**: {total} 个 Skill
-- **时间窗口**: 10 天去重（10 天全覆盖扫描周期）
+- **推荐模式**: 每日全维度（趋势×2 + 质量×1 + 新星×1 + 全景×2 = 6）
+- **去重窗口**: 7 天（7 天内已推荐的 Skill 不会重复出现）
 - **筛选规则**:
   - 趋势维度: installsCurrent > 100
   - 质量维度: downloads > 1000 且 star_rate > 0.5%
   - 新星维度: age_days <= 60 且 installsCurrent > 10 且 stars > 3
-  - 全景维度: comments > 50
+  - 全景维度: comments >= 1
 
 ## 🦞 反馈
 
@@ -348,80 +411,85 @@ def generate_markdown(date_str, dimension, recommended, total_scanned, deduplica
     return md
 
 
-def generate_feishu_blocks(date_str, dimension, recommended, total_scanned, deduplicated):
-    """生成飞书云文档 blocks（用于 create document）"""
-    config = DIMENSION_CONFIG[dimension]
-    dim_name = config['name']
+def generate_feishu_blocks(date_str, recommended, total_scanned, deduplicated, dim_stats):
+    """生成飞书云文档 blocks（全维度版）"""
     blocks = []
 
     # 标题
     blocks.append({"block_type": 3, "heading1": {
-        "elements": [{"text_run": {"content": f"🦞 ClawHub 每日洞察 | {date_str}（{dim_name}维度）"}}],
+        "elements": [{"text_run": {"content": f"🦞 ClawHub 每日洞察 | {date_str}"}}],
         "style": {}
     }})
     # 元信息
     blocks.append({"block_type": 2, "text": {
-        "elements": [{"text_run": {"content": f"数据日期：{date_str} | 推荐维度：{dim_name} | 扫描：{total_scanned} | 新增：{len(recommended)} | 去重：{deduplicated}"}}],
+        "elements": [{"text_run": {"content": f"数据日期：{date_str} | 扫描：{total_scanned} | 新增：{len(recommended)} | 去重：{deduplicated}"}}],
         "style": {}
     }})
-    # TL;DR
-    blocks.append({"block_type": 3, "heading1": {
-        "elements": [{"text_run": {"content": "🎯 TL;DR"}}], "style": {}
-    }})
-    pain_scenes = set()
-    for r in recommended:
-        pain_scenes.update(r.get('pain_points_matched', []))
-    tldr = f"今天推荐 {len(recommended)} 个 Skill"
-    if pain_scenes:
-        tldr += f"，匹配场景：{', '.join(sorted(pain_scenes))}"
+
+    # 各维度概况
+    dim_summary_parts = []
+    for dim_key, stats in dim_stats.items():
+        dim_summary_parts.append(f"{stats['module']} {stats['recommended']}/{stats['limit']}")
     blocks.append({"block_type": 2, "text": {
-        "elements": [{"text_run": {"content": tldr}}], "style": {}
+        "elements": [{"text_run": {"content": "维度概况：" + " | ".join(dim_summary_parts)}}],
+        "style": {}
     }})
+
     # 分隔线
     blocks.append({"block_type": 22, "divider": {}})
 
-    # 主要模块
-    blocks.append({"block_type": 3, "heading1": {
-        "elements": [{"text_run": {"content": config['module']}}], "style": {}
-    }})
-    for i, r in enumerate(recommended, 1):
-        blocks.append({"block_type": 4, "heading2": {
-            "elements": [{"text_run": {"content": f"{i}. {r['display_name']}"}}],
-            "style": {}
+    # 按维度分组展示
+    by_dim = {}
+    for r in recommended:
+        dim_key = r.get('dimension', 'trending')
+        by_dim.setdefault(dim_key, []).append(r)
+
+    for dim_key in ["trending", "quality", "newcomers", "panorama"]:
+        if dim_key not in by_dim:
+            continue
+        config = DIMENSION_CONFIG[dim_key]
+        blocks.append({"block_type": 3, "heading1": {
+            "elements": [{"text_run": {"content": config['module']}}], "style": {}
         }})
-        for line in [
-            f"作者: {r['author_display']} (`{r['author_handle']}`)",
-            f"链接: {r['url']}",
-            f"数据: ⭐ {r['stars']} | 📥 {r['downloads']} | 📊 活跃 {r['installs_current']} | 💬 {r['comments']}",
-            f"指标: 口碑率 {r['star_rate']}% | 活跃度 {r['activity_rate']}%",
-        ]:
-            blocks.append({"block_type": 2, "text": {
-                "elements": [{"text_run": {"content": line}}], "style": {}
-            }})
-        # 中文一句话解读（默认显示）
-        if r.get('chinese_one_liner'):
-            blocks.append({"block_type": 2, "text": {
-                "elements": [{"text_run": {"content": f"能力解读: {r['chinese_one_liner']}"}}], "style": {}
-            }})
-        if r.get('pain_points_matched'):
-            blocks.append({"block_type": 2, "text": {
-                "elements": [{"text_run": {"content": f"匹配场景: {', '.join(r['pain_points_matched'])}"}}],
+        for i, r in enumerate(by_dim[dim_key], 1):
+            # 标题含可点击链接
+            blocks.append({"block_type": 4, "heading2": {
+                "elements": [
+                    {"text_run": {"content": f"{i}. "}},
+                    {"text_run": {"content": r['display_name'], "text_element_style": {"link": {"url": r['url']}}}},
+                ],
                 "style": {}
             }})
-        blocks.append({"block_type": 2, "text": {
-            "elements": [{"text_run": {"content": f"推荐理由: {r['recommend_reason']}"}}],
-            "style": {}
-        }})
-        blocks.append({"block_type": 2, "text": {
-            "elements": [{"text_run": {"content": f"下一步: {r['next_action']}"}}],
-            "style": {}
-        }})
-        # 英文原文摘要作为参考
-        if r.get('summary'):
-            summary = r['summary'][:200] + ('...' if len(r['summary']) > 200 else '')
+            for line in [
+                f"作者: {r['author_display']} (`{r['author_handle']}`)",
+                f"数据: ⭐ {r['stars']} | 📥 {r['downloads']} | 📊 活跃 {r['installs_current']} | 💬 {r['comments']}",
+                f"指标: 口碑率 {r['star_rate']}% | 活跃度 {r['activity_rate']}%",
+            ]:
+                blocks.append({"block_type": 2, "text": {
+                    "elements": [{"text_run": {"content": line}}], "style": {}
+                }})
+            if r.get('chinese_one_liner'):
+                blocks.append({"block_type": 2, "text": {
+                    "elements": [{"text_run": {"content": f"能力解读: {r['chinese_one_liner']}"}}], "style": {}
+                }})
+            if r.get('pain_points_matched'):
+                blocks.append({"block_type": 2, "text": {
+                    "elements": [{"text_run": {"content": f"匹配场景: {', '.join(r['pain_points_matched'])}"}}],
+                    "style": {}
+                }})
             blocks.append({"block_type": 2, "text": {
-                "elements": [{"text_run": {"content": f"📄 原文摘要（English）: {summary}"}}], "style": {}
+                "elements": [{"text_run": {"content": f"推荐理由: {r['recommend_reason']}"}}],
+                "style": {}
             }})
+            blocks.append({"block_type": 2, "text": {
+                "elements": [{"text_run": {"content": f"下一步: {r['next_action']}"}}],
+                "style": {}
+            }})
+            if r.get('summary'):
+                summary = r['summary'][:200] + ('...' if len(r['summary']) > 200 else '')
+                blocks.append({"block_type": 2, "text": {
+                    "elements": [{"text_run": {"content": f"📄 原文摘要（English）: {summary}"}}], "style": {}
+                }})
 
     # 痛点分组
     blocks.append({"block_type": 22, "divider": {}})
@@ -451,7 +519,8 @@ def generate_feishu_blocks(date_str, dimension, recommended, total_scanned, dedu
     for line in [
         f"• 数据源: ClawHub Convex API",
         f"• 扫描数量: {total_scanned} 个 Skill",
-        f"• 时间窗口: 10 天去重（10 天全覆盖扫描周期）",
+        f"• 推荐模式: 每日全维度（趋势×2 + 质量×1 + 新星×1 + 全景×2 = 6）",
+        f"• 去重窗口: 7 天",
         f"• 数据日期: {date_str}",
     ]:
         blocks.append({"block_type": 2, "text": {
@@ -464,10 +533,10 @@ def generate_feishu_blocks(date_str, dimension, recommended, total_scanned, dedu
 def main():
     parser = argparse.ArgumentParser(description="生成每日推荐")
     parser.add_argument("--date", required=True, help="快照日期 YYYY-MM-DD")
-    parser.add_argument("--dimension", default=None, help="推荐维度（默认按日期自动）")
+    parser.add_argument("--dimension", default=None, help="单维度模式（默认全维度）")
     parser.add_argument("--data-dir", default="data", help="数据根目录")
-    parser.add_argument("--lookback-days", type=int, default=10, help="去重窗口（默认 10，配合 10 天全覆盖周期）")
-    parser.add_argument("--target", type=int, default=10, help="推荐数量（默认 10）")
+    parser.add_argument("--lookback-days", type=int, default=7, help="去重窗口（默认 7 天）")
+    parser.add_argument("--target", type=int, default=6, help="推荐数量（默认 6，全维度模式下由各维度 limit 决定）")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -485,23 +554,39 @@ def main():
     total_scanned = len(skills)
     print(f"[Recommend] 加载 {total_scanned} 个 Skill")
 
-    # 决定维度
-    dimension = args.dimension or get_dimension_by_date(args.date)
-    print(f"[Recommend] 维度: {dimension}")
-
     # 加载历史去重
     lookback_urls = load_recent_recommended(data_dir, args.lookback_days)
     print(f"[Recommend] {args.lookback_days} 天内已推荐: {len(lookback_urls)} 个")
 
     # 生成推荐
-    recommended = recommend_skills(skills, dimension, lookback_urls, args.target)
-    # deduplicated = number of candidates that were in the pool but skipped due to dedup
-    pool = [s for s in skills if DIMENSION_CONFIG[dimension]['filter_fn'](s)]
-    deduplicated = len([s for s in pool if s.get('slug', '') in lookback_urls])
-    print(f"[Recommend] 推荐 {len(recommended)} 个")
+    if args.dimension:
+        # 单维度模式（兼容旧版）
+        dimension = args.dimension
+        recommended = recommend_skills(skills, dimension, lookback_urls, args.target)
+        pool = [s for s in skills if DIMENSION_CONFIG[dimension]['filter_fn'](s)]
+        deduplicated = len([s for s in pool if s.get('slug', '') in lookback_urls])
+        dim_stats = {dimension: {
+            "name": DIMENSION_CONFIG[dimension]['name'],
+            "module": DIMENSION_CONFIG[dimension]['module'],
+            "pool": len(pool),
+            "recommended": len(recommended),
+            "limit": args.target,
+        }}
+        print(f"[Recommend] 单维度 {dimension}: 推荐 {len(recommended)} 个")
+    else:
+        # 全维度模式（每日默认）
+        recommended, dim_stats = recommend_all_dimensions(skills, lookback_urls)
+        # 统计去重数
+        all_pool_slugs = set()
+        for dim_key, config in DIMENSION_CONFIG.items():
+            for s in skills:
+                if config['filter_fn'](s) and not s['is_suspicious']:
+                    all_pool_slugs.add(s.get('slug', ''))
+        deduplicated = len([slug for slug in all_pool_slugs if slug in lookback_urls])
+        print(f"[Recommend] 全维度: 推荐 {len(recommended)} 个，去重 {deduplicated} 个")
 
     # 生成 Markdown 简报
-    md = generate_markdown(args.date, dimension, recommended, total_scanned, deduplicated)
+    md = generate_markdown(args.date, recommended, total_scanned, deduplicated, dim_stats)
     md_path = data_dir / "recommended" / f"{args.date}.md"
     md_path.parent.mkdir(parents=True, exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
@@ -509,16 +594,18 @@ def main():
     print(f"[Recommend] Markdown 已保存: {md_path}")
 
     # 生成飞书 blocks
-    blocks = generate_feishu_blocks(args.date, dimension, recommended, total_scanned, deduplicated)
+    blocks = generate_feishu_blocks(args.date, recommended, total_scanned, deduplicated, dim_stats)
     print(f"[Recommend] 飞书 blocks: {len(blocks)} 个")
 
     # 保存推荐结果 JSON（包含 blocks 供 push_to_feishu 使用）
+    dimension = args.dimension or "all"
     output = {
         "date": args.date,
         "dimension": dimension,
         "total_scanned": total_scanned,
         "recommendations": recommended,
         "deduplicated": deduplicated,
+        "dim_stats": dim_stats,
         "markdown_path": str(md_path),
         "feishu_blocks": blocks,
         "feishu_blocks_count": len(blocks),
