@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-06-05
+
+### Changed (变更)
+- **推荐模式从 4 天轮换改为每日全维度**：每天遍历全部 4 个维度，用户每天都能看到所有维度推荐
+- 维度配额调整：trending×2 + quality×1 + newcomers×1 + panorama×2 = 每日 6 个
+- 去重窗口从 10 天缩短到 7 天（7×6=42 个去重池）
+- 飞书卡片消息扩展到 Top 5 简介 + 底部云文档直达链接
+- 飞书卡片按维度分组展示，含维度概况统计
+
+### Fixed (修复)
+- 云文档/Markdown 中 Skill 链接改为可点击格式（`[text](url)` 和 `text_element_style.link`）
+- 飞书云文档 blocks 中 Skill 标题添加超链接，可直接点击跳转
+
 ## [1.0.3] - 2026-06-05
 
 ### Fixed (修复)
