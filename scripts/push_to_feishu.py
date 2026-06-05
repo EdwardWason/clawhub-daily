@@ -6,6 +6,7 @@
 - 发送飞书卡片消息
 """
 import json
+import os
 import argparse
 import sys
 import requests
@@ -136,19 +137,23 @@ def main():
     parser.add_argument("--skip-msg", action="store_true", help="跳过发送消息")
     args = parser.parse_args()
 
-    # 凭证优先级：CLI 参数 > config.json
+    # 凭证优先级：CLI 参数 > 环境变量 > config.json
     config = load_config(args.config) or {}
-    app_id = args.app_id or config.get("feishu_app_id")
-    app_secret = args.app_secret or config.get("feishu_app_secret")
-    user_open_id = args.user_open_id or config.get("feishu_user_open_id")
+    app_id = args.app_id or os.environ.get("FEISHU_APP_ID") or config.get("feishu_app_id")
+    app_secret = args.app_secret or os.environ.get("FEISHU_APP_SECRET") or config.get("feishu_app_secret")
+    user_open_id = args.user_open_id or os.environ.get("FEISHU_USER_OPEN_ID") or config.get("feishu_user_open_id")
 
     if not app_id or not app_secret:
         print("[Error] 缺少飞书凭证。请通过以下任一方式提供：")
         print("  1. --app-id <your_app_id> --app-secret <your_app_secret>")
-        print("  2. 在 references/config.json 中配置 feishu_app_id / feishu_app_secret")
+        print("  2. 环境变量 FEISHU_APP_ID / FEISHU_APP_SECRET")
+        print("  3. 在 references/config.json 中配置 feishu_app_id / feishu_app_secret")
         return 1
     if not user_open_id:
-        print("[Error] 缺少 user_open_id。请通过 --user-open-id 或 config.json 提供。")
+        print("[Error] 缺少 user_open_id。请通过以下任一方式提供：")
+        print("  1. --user-open-id <your_open_id>")
+        print("  2. 环境变量 FEISHU_USER_OPEN_ID")
+        print("  3. 在 references/config.json 中配置 feishu_user_open_id")
         return 1
 
     rec_path = Path(args.recommendation)
@@ -170,7 +175,12 @@ def main():
 
     # 准备
     feishu = FeishuAPI(app_id, app_secret)
-    title = f"🦞 ClawHub 每日洞察 | {date}（{dimension}维度）"
+    dim_stats = rec.get('dim_stats', {})
+    if dimension == "all":
+        title = f"🦞 ClawHub 每日洞察 | {date}"
+    else:
+        dim_name = dim_stats.get(dimension, {}).get('name', dimension) if dim_stats else dimension
+        title = f"🦞 ClawHub 每日洞察 | {date}（{dim_name}维度）"
     doc_url = None
 
     # 1. 创建文档
@@ -188,16 +198,29 @@ def main():
     # 2. 发送卡片消息
     if not args.skip_msg and recs:
         try:
-            # 准备摘要：3 个重点 Skill 的详细解读
+            # 按维度分组展示
+            by_dim = {}
+            for r in recs:
+                dim_key = r.get('dimension', 'trending')
+                by_dim.setdefault(dim_key, []).append(r)
+
             highlights_lines = []
-            for r in recs[:3]:
-                # 中文价值判断
-                highlights_lines.append(
-                    f"**{r['display_name']}** (⭐{r['stars']} | 📥{r['downloads']})\n"
-                    f"  💡 {r['recommend_reason']}\n"
-                    f"  🎯 {r['next_action']}\n"
-                    f"  🏷️ {', '.join(r.get('pain_points_matched', [])) or '通用工具'}"
-                )
+            for dim_key in ["trending", "quality", "newcomers", "panorama"]:
+                if dim_key not in by_dim:
+                    continue
+                dim_recs = by_dim[dim_key]
+                dim_config = {
+                    "trending": ("🔥 趋势", "热装"),
+                    "quality": ("⭐ 质量", "口碑"),
+                    "newcomers": ("🚀 新星", "崛起"),
+                    "panorama": ("🏆 全景", "热议"),
+                }.get(dim_key, (dim_key, ""))
+                for r in dim_recs:
+                    highlights_lines.append(
+                        f"**{r['display_name']}** ({dim_config[0]}) ⭐{r['stars']} 📥{r['downloads']}\n"
+                        f"  💡 {r['recommend_reason']}\n"
+                        f"  🏷️ {', '.join(r.get('pain_points_matched', [])) or '通用工具'}"
+                    )
             highlights = "\n\n".join(highlights_lines)
 
             # 统计摘要
@@ -206,18 +229,31 @@ def main():
                 pain_scenes.update(r.get('pain_points_matched', []))
             scene_text = "、".join(sorted(pain_scenes)[:3]) if pain_scenes else "通用推荐"
 
-            # 总字数控制在 250-400
+            # 维度概况
+            dim_summary_parts = []
+            for dim_key, stats in dim_stats.items():
+                dim_summary_parts.append(f"{stats['module']} {stats['recommended']}/{stats['limit']}")
+
+            # 云文档直达链接（放在卡片底部）
+            doc_link_section = ""
+            if doc_url:
+                doc_link_section = f"\n\n📄 **完整简报**: [点击查看云文档]({doc_url})"
+
+            # 总字数控制在 400-600
+            dim_text = " | ".join(dim_summary_parts) if dim_summary_parts else f"{dimension}维度"
             content = (
-                f"**🦞 {date} | {dimension}维度**\n\n"
+                f"**🦞 {date} | 全维度**\n\n"
                 f"扫描 {total_scanned} 个 Skill → 推荐 {len(recs)} 个新发现，去重 {deduplicated} 个\n"
+                f"维度：{dim_text}\n"
                 f"匹配场景：{scene_text}\n\n"
                 f"━━━━━━━━━━━━━━━\n"
-                f"**🌟 今日重点**\n\n"
+                f"**🌟 今日推荐**\n\n"
                 f"{highlights}\n\n"
                 f"━━━━━━━━━━━━━━━\n"
-                f"📚 完整简报包含所有推荐详情的：作者、数据、指标、匹配场景、推荐理由、下一步行动"
+                f"📚 完整简报包含所有推荐详情：作者、数据、指标、匹配场景、推荐理由、下一步行动"
+                f"{doc_link_section}"
             )
-            result = feishu.send_card_message(args.user_open_id, title, content, doc_url)
+            result = feishu.send_card_message(user_open_id, title, content, doc_url)
             print(f"  [Feishu] 消息已发送 ✅")
         except Exception as e:
             print(f"  [Feishu] 发送消息失败: {e}")
