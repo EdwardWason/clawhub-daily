@@ -1,41 +1,57 @@
-﻿---
+---
 name: clawhub-daily
+slug: clawhub-daily-ai
+displayName: ClawHub Daily
+version: 2.0.0
+summary: Daily ClawHub Skill insights with 6-dimension recommendation
+license: MIT-0
 description: |
-  每日扫描 ClawHub 全球 Skill 平台，结合多维数据（⭐/📥/installsCurrent/comments/capabilityTags）
-  通过 4 维度轮换算法为用户推荐 8-10 个有价值、不重复、值得关注的 AI Agent Skill，
-  并通过飞书推送完整简报。
+  每日扫描 ClawHub 全球 Skill 平台（500 个 Skill），通过 6 维度全维度推荐算法
+  为用户推荐 8 个有价值、不重复、值得关注的 AI Agent Skill，并通过飞书推送完整简报。
 
   触发场景：
   - 用户希望每日/定时收到 ClawHub Skill 推荐简报
   - 用户希望跟踪 AI Agent 生态的最新 Skill 趋势
   - 用户希望按痛点场景（自动化办公/开发工具/内容创作/数据采集/AI 增强/中文支持/金融分析）匹配推荐
-  - 用户希望避免重复推荐，结合 10 天历史去重
+  - 用户希望避免重复推荐，结合 7 天跨维度去重
 
   核心能力：
-  - 真实抓取 ClawHub Top 200 Skill（基于 Convex API，0 token 消耗）
-  - 计算 5 大指标：star_rate、installsCurrent、活跃度、comments 热度、能力标签匹配
-  - 4 维度轮换：趋势 / 质量 / 新星 / 全景（按 `日期 % 4` 自动选）
-  - 10 天历史去重，避免重复推荐
+  - 真实抓取 ClawHub Top 500 Skill（基于 Convex API，0 token 消耗）
+  - 适配新 API 数据结构（stats.installs / categories / badges.verified / changelog）
+  - 6 维度全维度推荐：trending / quality / newcomers / panorama / actively_maintained / verified
+  - 降级策略：候选不足时自动放宽阈值（fallback_fn）
+  - optional 维度：verified 候选为 0 时自动跳过，不占配额
+  - 7 天跨维度去重，避免重复推荐
+  - 痛点匹配去重展示：同一 Skill 只在第一个命中场景展示
+  - changelog 展示：有最近变更摘要的 Skill 展示"最近变更"字段
   - 痛点加权：基于 7 大场景库个性化排序
-  - 多模块简报：热装、口碑、新星、痛点、热议、分类王者
-  - 飞书云文档 + 200-400 字卡片消息推送
+  - 飞书云文档 + Top 5 卡片消息推送（含云文档直达链接）
   - 简报中文化：中文一句话 + 英文原文 `<details>` 折叠
 ---
 
 # ClawHub Daily Skill 洞察技能
 
-> 每日扫描 ClawHub 全球 AI Agent Skill 平台，生成多维度精选简报
+> 每日扫描 ClawHub 全球 AI Agent Skill 平台，生成 6 维度精选简报
 
 ## 核心能力
 
-- **真实数据**：直接调用 ClawHub Convex API（`wry-manatee-359.convex.cloud`），抓取 Top 200 Skill
-- **多维分析**：⭐ stars / 📥 downloads / `installsCurrent` / `installsAllTime` / `comments` / `capabilityTags` 6 大维度
-- **4 维度轮换**：每天换一组推荐角度（趋势 / 质量 / 新星 / 全景）
-- **10 天去重**：基于历史快照，10 天滚动窗口
+- **真实数据**：直接调用 ClawHub Convex API（`wry-manatee-359.convex.cloud`），抓取 Top 500 Skill
+- **新 API 适配**：`stats.installs`（非 `installsCurrent`）、`categories`（非 `capabilityTags`）、`badges.verified`、`latestVersion.changelog` 等嵌套字段
+- **6 维度全维度推荐**：每天遍历全部 6 个维度，用户每天看全貌
+  - 🔥 trending × 3（活跃安装≥100，降级≥30）
+  - ⭐ quality × 1（下载≥1000+口碑≥0.5%，降级≥500+0.3%）
+  - 🚀 newcomers × 1（≤60天+安装≥10+星≥3，降级≤90天+5+2）
+  - 🏆 panorama × 2（评论≥1）
+  - 🔧 actively_maintained × 1（90天内更新+版本≥3，降级180天+版本≥2）
+  - 🛡️ verified × 1（平台安全审计通过，候选为空时跳过）
+- **降级策略**：候选不足时自动放宽阈值（fallback_fn）
+- **optional 维度**：verified 候选为 0 时自动跳过，不占配额
+- **7 天跨维度去重**：同一 Skill 在不同维度和不同天都不会重复
+- **痛点匹配去重**：同一 Skill 只在第一个命中场景展示（按权重排序）
+- **changelog 展示**：有最近变更摘要的 Skill 展示"最近变更"字段
 - **痛点匹配**：基于 7 大场景库（自动化办公/开发工具/内容创作/数据采集/AI 增强/中文支持/金融分析）加权
 - **简报中文化**：中文一句话解读 + 英文原文 `<details>` 折叠（0 token 消耗）
-- **多模块简报**：6 大推荐模块 + 回顾 + 行动建议
-- **飞书推送**：完整云文档 + 200-400 字飞书卡片消息
+- **飞书推送**：完整云文档（6 维度全部展示）+ Top 5 卡片消息（含云文档直达链接）
 
 ## 使用模式（二选一）
 
