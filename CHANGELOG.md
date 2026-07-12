@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-07-12
+
+### Fixed (修复)
+- **Tp4 MCP Tool Poisoning (High)**：description 中 IMA 渠道说明从"默认关闭，需显式启用"修正为"有凭证时自动推送，无凭证时跳过"，准确反映 executor 实际行为（executor 会尝试所有渠道，有凭证则推送，无凭证则跳过）。
+- **Vague Triggers (Medium)**：删除宽泛触发词"今天有什么好 Skill"，替换为专用触发词"ClawHub 每日洞察"。从 SKILL.md / plugin.json / setup-wizard.md 三个文件同步清理。
+- **Missing User Warnings - 凭证安全 (Medium)**：setup-wizard.md 飞书凭证配置部分新增"⚠️ 凭证安全须知"区块，包含存储/轮换/权限最小化/ClawHub publish 不遵守 .gitignore 等 5 项安全指导。
+- **Missing User Warnings - 测试推送 (Medium)**：setup-wizard.md 测试运行步骤前新增"⚠️ 数据推送警告"，明确标注步骤 4-6 是外部传输，步骤 1-3 是本地操作。每个命令标注是否涉及外部传输。
+- **Intent-Code Divergence (Low)**：PUBLISHING_GUIDE.md 的 grep 凭证扫描命令新增 GitHub token 全部前缀（gho_/ghs_）和 SkillHub token（skh_），消除"GH_TOKEN 讨论但 grep 不覆盖"的分歧。
+
+### Changed (变更)
+- SKILL.md description 新增"推送行为"说明行，明确 executor 的独立 try/except 失败隔离机制。
+- setup-wizard.md 测试步骤从 4 步扩展到 6 步（新增 IMA 推送和 Obsidian 推送）。
+
 ## [2.0.6] - 2026-07-12
 
 ### Added (新增)

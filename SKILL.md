@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.6
+version: 2.0.7
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -10,10 +10,11 @@ description: |
   为用户推荐 8 个有价值、不重复、值得关注的 AI Agent Skill，并通过多渠道推送完整简报。
 
   数据出口说明（用户知情同意）：
-  - 飞书（Lark）：云文档 + 卡片消息（默认渠道，需 feishu_app_id/secret）
-  - 腾讯 IMA 知识库：可选渠道，需 ima_client_id/api_key（默认关闭，需显式启用）
+  - 飞书（Lark）：云文档 + 卡片消息（有凭证时自动推送，无凭证时跳过）
+  - 腾讯 IMA 知识库：官方 OpenAPI 推送（有凭证时自动推送，无凭证时跳过）
   - Obsidian 本地 vault：inbox/clawhub-daily/ 子目录（默认开启，仅写入本地磁盘）
   - 本地文件：data/recommended/*.md 简报文件（默认开启，仅写入本地磁盘）
+  推送行为：executor 会尝试所有渠道，每个渠道独立 try/except，有凭证则推送，无凭证则跳过，一处失败不阻断其他渠道。
 
   凭证来源（优先级：CLI 参数 > 环境变量 > config.json）：
   - 飞书：FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_USER_OPEN_ID 环境变量，或 references/config.json
@@ -105,7 +106,6 @@ description: |
 **触发词**（在 Agent 对话中输入任一即可）：
 - "每日推荐"
 - "ClawHub 日报"
-- "今天有什么好 Skill"
 
 ### 模式 B：Cron 定时任务模式 ⏰
 

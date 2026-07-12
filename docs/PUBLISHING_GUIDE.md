@@ -1,4 +1,4 @@
-﻿# 发布指南（Publishing Guide）
+# 发布指南（Publishing Guide）
 
 > 适用：clawhub-daily v1.0.0+ 维护者
 
@@ -13,8 +13,8 @@ clawhub-daily 同时发布到 **GitHub** 和 **ClawHub** 两个平台：
 ### 隐私审查
 
 ```bash
-# 搜索硬编码凭证
-grep -rE "cli_[0-9a-f]{16}|sk-[a-zA-Z0-9]{20,}|ou_[0-9a-f]{20,}|ghp_[a-zA-Z0-9]{20,}|x[A-Za-z0-9]{20,}" \
+# 搜索硬编码凭证（覆盖飞书/IMA/GitHub/SkillHub 全部 token 前缀）
+grep -rE "cli_[0-9a-f]{16}|sk-[a-zA-Z0-9]{20,}|ou_[0-9a-f]{20,}|ghp_[a-zA-Z0-9]{20,}|gho_[a-zA-Z0-9]{20,}|ghs_[a-zA-Z0-9]{20,}|skh_[a-zA-Z0-9]{20,}|x[A-Za-z0-9]{20,}" \
   --include="*.py" --include="*.md" --include="*.json" \
   --exclude-dir=data --exclude-dir=__pycache__
 ```
