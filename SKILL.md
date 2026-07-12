@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.7
+version: 2.0.8
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -11,8 +11,8 @@ description: |
 
   数据出口说明（用户知情同意）：
   - 飞书（Lark）：云文档 + 卡片消息（有凭证时自动推送，无凭证时跳过）
-  - 腾讯 IMA 知识库：官方 OpenAPI 推送（有凭证时自动推送，无凭证时跳过）
-  - Obsidian 本地 vault：inbox/clawhub-daily/ 子目录（默认开启，仅写入本地磁盘）
+  - 腾讯 IMA 知识库：官方 OpenAPI 推送（方式 A，有凭证时自动推送）；若安装了 ima-skill CLI 则自动调用（方式 B）
+  - Obsidian 本地 vault：inbox/clawhub-daily/ 子目录（默认开启，仅写入本地磁盘）。vault 不可写时 fallback 到脚本目录 saved/ 子目录
   - 本地文件：data/recommended/*.md 简报文件（默认开启，仅写入本地磁盘）
   推送行为：executor 会尝试所有渠道，每个渠道独立 try/except，有凭证则推送，无凭证则跳过，一处失败不阻断其他渠道。
 
@@ -21,7 +21,14 @@ description: |
   - IMA：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY 环境变量，或 references/config.json
   - Obsidian：OBSIDIAN_VAULT_PATH 环境变量（默认 E:\Obsidian\md\inbox\clawhub-daily）
   未配置任何凭证时仅生成本地文件，不执行外部推送。
-  本技能不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量。
+  本技能运行时不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量（GH_TOKEN 仅用于维护者发布新版本，见 docs/PUBLISHING_GUIDE.md）。
+
+  🔐 权限声明（capabilities）：
+  - network（必需）：访问 ClawHub API（wry-manatee-359.convex.cloud）抓取数据；有凭证时访问飞书 API（open.feishu.cn）和 IMA API（ima.qq.com）推送简报
+  - filesystem（必需）：写入 data/snapshots/（原始数据）、data/recommended/（简报）、Obsidian vault inbox/clawhub-daily/（简报副本）、saved/（vault 不可写时的 fallback）
+  - env_vars（可选）：FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_USER_OPEN_ID / IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY / OBSIDIAN_VAULT_PATH。未配置时仅生成本地文件
+  - subprocess（可选）：auto 模式下若官方 API 失败，可能调用 ima-skill CLI 命令（需用户预装）
+  不申请的权限：shell 执行（除 ima-skill CLI 外）、系统信息收集、GitHub 凭证读取（GH_TOKEN）、任意文件系统访问
 
   触发场景：
   - 用户希望每日/定时收到 ClawHub Skill 推荐简报

@@ -2,6 +2,10 @@
 
 > 适用：clawhub-daily v1.0.0+ 维护者
 
+> **⚠️ 维护者文档说明**：本文档面向技能维护者，指导如何发布新版本到 GitHub/ClawHub/SkillHub。
+> 文档中提到的 `GH_TOKEN` 仅用于维护者发布新版本时调用 GitHub API，**技能运行时不读取 GH_TOKEN**。
+> 技能运行时的凭证和行为详见 SKILL.md 的"数据出口说明"和"权限声明"章节。
+
 ## 🎯 发布目标
 
 clawhub-daily 同时发布到 **GitHub** 和 **ClawHub** 两个平台：

@@ -1,7 +1,7 @@
 {
   "name": "clawhub-daily",
   "description": "Daily ClawHub Skill insights: 500 skills scanned, 6-dimension all-daily recommendation (trending/quality/newcomers/panorama/actively_maintained/verified), 7 pain-points, 7-day cross-dimension dedup, fallback strategy, changelog display, multi-channel push (Lark/Feishu/IMA/Local)",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "author": {
     "name": "clawhub-daily contributors"
   },
@@ -48,19 +48,24 @@
       "endpoints": [
         "https://wry-manatee-359.convex.cloud",
         "https://open.feishu.cn",
-        "https://ima.tencent.com"
+        "https://ima.qq.com"
       ],
       "purpose": "Fetch ClawHub skill data and optionally push briefings to Feishu/IMA"
     },
     "filesystem": {
       "required": true,
-      "paths": ["data/snapshots/", "data/recommended/"],
-      "purpose": "Store raw skill snapshots and generated briefing markdown files"
+      "paths": ["data/snapshots/", "data/recommended/", "inbox/clawhub-daily/", "saved/"],
+      "purpose": "Store raw snapshots, briefing markdown, Obsidian vault copies, and fallback saves"
     },
     "env_vars": {
       "required": false,
-      "variables": ["FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_USER_OPEN_ID", "IMA_OPENAPI_CLIENTID", "IMA_OPENAPI_APIKEY"],
-      "purpose": "Optional credentials for Feishu/IMA push channels; if unset, only local files are generated"
+      "variables": ["FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_USER_OPEN_ID", "IMA_OPENAPI_CLIENTID", "IMA_OPENAPI_APIKEY", "OBSIDIAN_VAULT_PATH"],
+      "purpose": "Optional credentials for Feishu/IMA push channels and Obsidian vault path; if unset, only local files are generated"
+    },
+    "subprocess": {
+      "required": false,
+      "commands": ["ima", "ima-skill", "ima_cli", "ima_push"],
+      "purpose": "Optional IMA CLI fallback if official OpenAPI fails; only invoked in auto mode when CLI is installed"
     }
   },
   "categories": [

@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.8] - 2026-07-12
+
+### Fixed (修复)
+- **Tp4 MCP Tool Poisoning (High)**：description 未披露 IMA 的 CLI 调用方式（方式 B）和 Obsidian saved/ fallback 路径。description 现已明确披露：① IMA auto 模式可能调用 ima-skill CLI ② Obsidian vault 不可写时 fallback 到 saved/ 目录。
+- **Lp3 MCP Least Privilege (Medium)**：SkillHub zip 打包排除了 .claude-plugin/ 目录，SkillSpector 看不到 capabilities 声明。SKILL.md description 新增"🔐 权限声明"区块，覆盖 network/filesystem/env_vars/subprocess 四类权限，与 plugin.json 的 capabilities 保持一致。
+- **Scope Creep (Medium)**：push_to_obsidian.py 的 saved/ fallback 目录未在文档中披露。现已写入 description 的数据出口说明和 filesystem 权限声明。
+- **Intent-Code Divergence (Medium)**：SKILL.md 声明"不读取 GH_TOKEN"，但 PUBLISHING_GUIDE.md 讨论 GH_TOKEN 使用。PUBLISHING_GUIDE.md 顶部新增"⚠️ 维护者文档说明"，明确 GH_TOKEN 仅用于维护者发布，技能运行时不读取。
+
+### Changed (变更)
+- plugin.json capabilities 增强：① 修正 IMA endpoint（ima.tencent.com → ima.qq.com）② filesystem paths 新增 inbox/clawhub-daily/ 和 saved/ ③ env_vars 新增 OBSIDIAN_VAULT_PATH ④ 新增 subprocess 权限声明（ima-skill CLI）
+- SKILL.md "不读取 GH_TOKEN" 声明补充上下文："运行时不读取（GH_TOKEN 仅用于维护者发布新版本，见 docs/PUBLISHING_GUIDE.md）"
+- Vague Triggers (Medium, 72%) **不修复**：触发词"每日推荐"和"ClawHub 日报"已足够明确（含品牌词或核心功能描述），72% confidence 属于边缘判断。再删触发词会导致技能无法正常触发。
+
 ## [2.0.7] - 2026-07-12
 
 ### Fixed (修复)
