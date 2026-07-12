@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.2
+version: 2.0.3
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -82,6 +82,18 @@ description: |
 - 本技能不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量
 - 不会收集或传输用户系统信息或其他与推荐无关的数据
 
+## 🔐 权限声明（capabilities）
+
+本技能在 `plugin.json` 的 `capabilities` 字段中声明所有运行时所需的权限，供用户和宿主平台在执行前审查：
+
+| 权限类别 | 是否必需 | 说明 |
+|---------|---------|------|
+| **network** | ✅ 必需 | 访问 ClawHub Convex API 抓取数据；可选访问飞书/IMA API 推送简报 |
+| **filesystem** | ✅ 必需 | 写入 `data/snapshots/`（原始数据）和 `data/recommended/`（简报 Markdown）|
+| **env_vars** | ❌ 可选 | 读取 `FEISHU_APP_ID`/`FEISHU_APP_SECRET`/`FEISHU_USER_OPEN_ID`/`IMA_OPENAPI_CLIENTID`/`IMA_OPENAPI_APIKEY` 环境变量（未配置时仅生成本地文件）|
+
+**不申请的权限**：shell 执行、系统信息收集、GitHub 凭证读取（GH_TOKEN）、任意文件系统访问。
+
 ## 使用模式（二选一）
 
 本技能支持 **2 种使用模式**，首次安装请阅读 [`references/setup-wizard.md`](references/setup-wizard.md)：
@@ -92,7 +104,6 @@ description: |
 - "每日推荐"
 - "ClawHub 日报"
 - "今天有什么好 Skill"
-- "帮我推荐技能"
 - "扫描 ClawHub"
 
 ### 模式 B：Cron 定时任务模式 ⏰

@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-07-12
+
+### Fixed (修复)
+- **MCP Least Privilege (Lp3, Medium)**：plugin.json 新增 `capabilities` 字段，声明 network/filesystem/env_vars 三类权限及其用途，消除"未声明权限"的透明度缺口
+- **Vague Triggers (Medium)**：删除宽泛触发词 "帮我推荐技能"（可能在普通对话中误激活），保留 4 个含 "ClawHub"/"每日" 限定词的专用触发词
+
+### Added (新增)
+- **SKILL.md 新增"🔐 权限声明"区块**：以表格形式列出 network/filesystem/env_vars 三类权限的必需性和说明，并明确声明"不申请 shell 执行、系统信息收集、GH_TOKEN 读取"等权限
+
+### Changed (变更)
+- plugin.json `triggers` 数组从 5 项缩减为 4 项
+- plugin.json `capabilities` 字段声明所有运行时权限，供宿主平台和用户审查
+
 ## [2.0.2] - 2026-07-12
 
 ### Fixed (修复)

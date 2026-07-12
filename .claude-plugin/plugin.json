@@ -1,7 +1,7 @@
 {
   "name": "clawhub-daily",
   "description": "Daily ClawHub Skill insights: 500 skills scanned, 6-dimension all-daily recommendation (trending/quality/newcomers/panorama/actively_maintained/verified), 7 pain-points, 7-day cross-dimension dedup, fallback strategy, changelog display, multi-channel push (Lark/Feishu/IMA/Local)",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "author": {
     "name": "clawhub-daily contributors"
   },
@@ -41,9 +41,29 @@
     "每日推荐",
     "ClawHub 日报",
     "今天有什么好 Skill",
-    "帮我推荐技能",
     "扫描 ClawHub"
   ],
+  "capabilities": {
+    "network": {
+      "required": true,
+      "endpoints": [
+        "https://wry-manatee-359.convex.cloud",
+        "https://open.feishu.cn",
+        "https://ima.tencent.com"
+      ],
+      "purpose": "Fetch ClawHub skill data and optionally push briefings to Feishu/IMA"
+    },
+    "filesystem": {
+      "required": true,
+      "paths": ["data/snapshots/", "data/recommended/"],
+      "purpose": "Store raw skill snapshots and generated briefing markdown files"
+    },
+    "env_vars": {
+      "required": false,
+      "variables": ["FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_USER_OPEN_ID", "IMA_OPENAPI_CLIENTID", "IMA_OPENAPI_APIKEY"],
+      "purpose": "Optional credentials for Feishu/IMA push channels; if unset, only local files are generated"
+    }
+  },
   "categories": [
     "productivity",
     "discovery",
