@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2026-07-12
+
+### Added (新增)
+- **新增 Obsidian 本地 vault 推送渠道**：参考 web-to-fim 技能的三处存放架构，新增 `scripts/push_to_obsidian.py`，将每日简报推送到 Obsidian vault 的 `inbox/clawhub-daily/` 子目录。
+- **三级 fallback 机制**：Obsidian 写入失败时自动降级（重试3次 → ASCII文件名 → 脚本目录 saved/），确保本地存储永不丢失。
+- **executor 失败隔离**：推送阶段三个渠道（飞书/IMA/Obsidian）各自独立 try/except，一处失败不阻断其他渠道，参考 web-to-fim 的 `_process_single` 架构。
+- **推送汇总报告**：executor 执行结束后输出三渠道推送结果汇总（`飞书=✓ | IMA=✓ | Obsidian=✓`）。
+
+### Changed (变更)
+- `clawhub_daily_executor.py` 推送阶段重构：Step 4-6 三处存放独立 try/except + 推送汇总。
+- SKILL.md 数据出口说明新增 Obsidian 渠道。
+- 凭证来源说明新增 OBSIDIAN_VAULT_PATH 环境变量。
+
 ## [2.0.5] - 2026-07-12
 
 ### Removed (移除)

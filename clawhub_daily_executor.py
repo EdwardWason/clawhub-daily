@@ -1,134 +1,130 @@
 #!/usr/bin/env python3
 """
-ClawHub Daily 一键执行器
-按顺序编排 4 步脚本链路：抓取 → 指标计算 → 推荐 → 推送
+ClawHub Daily 定时任务执行器
+SOLO Schedule 调用的主脚本
+流程：抓取 → 计算指标 → 生成推荐 → 推送飞书
 
-使用方法：
-  python clawhub_daily_executor.py
-  python clawhub_daily_executor.py --skip-push       # 只生成简报，不推送
-  python clawhub_daily_executor.py --date 2026-06-03  # 指定日期
-  python clawhub_daily_executor.py --num 100          # 只抓 100 个
+脚本指向 clawhub-daily/scripts/ 下的发布版脚本（无硬编码凭证）
 """
-import argparse
-import subprocess
 import sys
-import time
-from datetime import datetime
+import subprocess
+import argparse
 from pathlib import Path
-
-# 项目根目录（executor 所在目录）
-PROJECT_ROOT = Path(__file__).parent
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-DATA_DIR = PROJECT_ROOT / "data"
+from datetime import datetime
 
 
-def run_step(name, cmd, cwd=None):
-    """执行单步脚本，返回是否成功"""
+PROJECT_DIR = Path(__file__).resolve().parent
+SKILL_DIR = PROJECT_DIR / "clawhub-daily"
+SCRIPTS = SKILL_DIR / "scripts"
+DATA_DIR = PROJECT_DIR / "data"
+
+
+def run(cmd, label):
+    """执行命令"""
     print(f"\n{'='*60}")
-    print(f"  STEP: {name}")
-    print(f"  CMD:  {' '.join(str(c) for c in cmd)}")
-    print(f"{'='*60}")
-    start = time.time()
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=cwd or str(PROJECT_ROOT),
-            capture_output=False,
-            text=True,
-        )
-        elapsed = time.time() - start
-        if result.returncode != 0:
-            print(f"  [FAIL] {name} 退出码: {result.returncode} ({elapsed:.1f}s)")
-            return False
-        print(f"  [OK] {name} 完成 ({elapsed:.1f}s)")
-        return True
-    except Exception as e:
-        elapsed = time.time() - start
-        print(f"  [FAIL] {name} 异常: {e} ({elapsed:.1f}s)")
+    print(f"[Step] {label}")
+    print(f"[Cmd]  {' '.join(cmd)}")
+    print('='*60)
+    result = subprocess.run(cmd, capture_output=False)
+    if result.returncode != 0:
+        print(f"[FAIL] {label} 失败 (exit={result.returncode})")
         return False
+    return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ClawHub Daily 一键执行器")
-    parser.add_argument("--date", default=None, help="快照日期 YYYY-MM-DD（默认今天）")
-    parser.add_argument("--num", type=int, default=200, help="抓取数量（默认 200）")
-    parser.add_argument("--skip-push", action="store_true", help="跳过推送步骤")
-    parser.add_argument("--skip-feishu", action="store_true", help="跳过飞书推送")
-    parser.add_argument("--skip-ima", action="store_true", help="跳过 IMA 推送")
-    parser.add_argument("--dimension", default=None, help="推荐维度（默认按日期自动）")
+    parser = argparse.ArgumentParser(description="ClawHub Daily 主执行器")
+    parser.add_argument("--date", default=None, help="数据日期（默认今天）")
+    parser.add_argument("--num", type=int, default=500, help="抓取数量")
+    parser.add_argument("--skip-push", action="store_true", help="跳过飞书推送")
     args = parser.parse_args()
 
-    date_str = args.date or datetime.now().strftime("%Y-%m-%d")
-    print(f"\n🦞 ClawHub Daily Executor | {date_str}")
-    print(f"   抓取数量: {args.num}")
-    print(f"   推送: {'跳过' if args.skip_push else '开启'}")
+    date = args.date or datetime.now().strftime("%Y-%m-%d")
+    print(f"🦞 ClawHub Daily | {date}")
 
-    snapshot_path = DATA_DIR / "snapshots" / f"{date_str}.json"
-    metrics_path = DATA_DIR / "snapshots" / f"{date_str}.metrics.json"
-    rec_path = DATA_DIR / "recommended" / f"{date_str}.json"
+    # Verify scripts directory exists
+    if not SCRIPTS.exists():
+        print(f"[ERROR] Scripts directory not found: {SCRIPTS}")
+        print(f"  Expected clawhub-daily/scripts/ under {PROJECT_DIR}")
+        return 1
 
     # Step 1: 抓取
-    if not run_step(
-        "1/4 抓取 ClawHub 数据",
-        [sys.executable, str(SCRIPTS_DIR / "fetch_clawhub.py"),
-         "--num", str(args.num), "--output", str(snapshot_path.parent),
-         "--date", date_str],
-    ):
-        print("\n[ABORT] 抓取失败，终止执行")
+    if not run([
+        sys.executable, str(SCRIPTS / "fetch_clawhub.py"),
+        "--num", str(args.num),
+        "--date", date,
+        "--output", str(DATA_DIR / "snapshots")
+    ], "抓取 ClawHub 数据"):
         return 1
 
     # Step 2: 指标计算
-    if not run_step(
-        "2/4 计算指标",
-        [sys.executable, str(SCRIPTS_DIR / "compute_metrics.py"),
-         "--input", str(snapshot_path),
-         "--output", str(metrics_path)],
-    ):
-        print("\n[ABORT] 指标计算失败，终止执行")
+    snapshot_path = DATA_DIR / "snapshots" / f"{date}.json"
+    if not run([
+        sys.executable, str(SCRIPTS / "compute_metrics.py"),
+        "--input", str(snapshot_path)
+    ], "计算指标"):
         return 1
 
     # Step 3: 生成推荐
-    recommend_cmd = [
-        sys.executable, str(SCRIPTS_DIR / "daily_recommend.py"),
-        "--date", date_str,
-        "--data-dir", str(DATA_DIR),
-    ]
-    if args.dimension:
-        recommend_cmd.extend(["--dimension", args.dimension])
-    if not run_step("3/4 生成推荐", recommend_cmd):
-        print("\n[ABORT] 推荐生成失败，终止执行")
+    if not run([
+        sys.executable, str(SCRIPTS / "daily_recommend.py"),
+        "--date", date,
+        "--data-dir", str(DATA_DIR)
+    ], "生成推荐"):
         return 1
 
-    # Step 4: 推送
-    if args.skip_push:
-        print("\n[SKIP] 推送步骤已跳过")
-    else:
-        # 4a: 飞书推送
-        if not args.skip_feishu:
-            feishu_cmd = [
-                sys.executable, str(SCRIPTS_DIR / "push_to_feishu.py"),
-                "--recommendation", str(rec_path),
-            ]
-            if not run_step("4a/4 飞书推送", feishu_cmd):
-                print("  [WARN] 飞书推送失败，继续执行后续步骤")
+    # === 推送阶段（三处存放，各自独立 try/except 失败隔离，参考 web-to-fim 架构）===
+    if not args.skip_push:
+        rec_path = DATA_DIR / "recommended" / f"{date}.json"
+        # Prefer config.local.json (local credentials, not published) over config.json (template)
+        config_path = SKILL_DIR / "references" / "config.local.json"
+        if not config_path.exists():
+            config_path = SKILL_DIR / "references" / "config.json"
 
-        # 4b: IMA 推送
-        if not args.skip_ima:
-            ima_cmd = [
-                sys.executable, str(SCRIPTS_DIR / "push_to_ima.py"),
-                "--recommendation", str(rec_path),
-            ]
-            if not run_step("4b/4 IMA 推送", ima_cmd):
-                print("  [WARN] IMA 推送失败，不影响主流程")
+        push_results = {"feishu": None, "ima": None, "obsidian": None}
 
-    # 汇总
-    print(f"\n{'='*60}")
-    print(f"  🦞 执行完成 | {date_str}")
-    print(f"  快照: {snapshot_path}")
-    print(f"  指标: {metrics_path}")
-    print(f"  推荐: {rec_path}")
-    print(f"  简报: {rec_path.with_suffix('.md')}")
-    print(f"{'='*60}")
+        # Step 4: 推送飞书云文档
+        try:
+            push_results["feishu"] = run([
+                sys.executable, str(SCRIPTS / "push_to_feishu.py"),
+                "--recommendation", str(rec_path),
+                "--config", str(config_path)
+            ], "推送飞书")
+            if not push_results["feishu"]:
+                print("[Warn] 飞书推送失败，继续尝试其他渠道")
+        except Exception as e:
+            print(f"[Warn] 飞书推送异常: {e}")
+
+        # Step 5: 推送 IMA FIM 知识库
+        try:
+            push_results["ima"] = run([
+                sys.executable, str(SCRIPTS / "push_to_ima.py"),
+                "--recommendation", str(rec_path),
+                "--config", str(config_path),
+                "--mode", "official"
+            ], "推送 IMA FIM 知识库")
+            if not push_results["ima"]:
+                print("[Warn] IMA 推送失败，继续尝试其他渠道")
+        except Exception as e:
+            print(f"[Warn] IMA 推送异常: {e}")
+
+        # Step 6: 推送 Obsidian 本地 vault
+        try:
+            push_results["obsidian"] = run([
+                sys.executable, str(SCRIPTS / "push_to_obsidian.py"),
+                "--recommendation", str(rec_path)
+            ], "推送 Obsidian 本地 vault")
+            if not push_results["obsidian"]:
+                print("[Warn] Obsidian 推送失败，继续尝试其他渠道")
+        except Exception as e:
+            print(f"[Warn] Obsidian 推送异常: {e}")
+
+        # 推送汇总
+        print(f"\n{'='*60}")
+        print(f"[推送汇总] 飞书={'✓' if push_results['feishu'] else '✗'} | IMA={'✓' if push_results['ima'] else '✗'} | Obsidian={'✓' if push_results['obsidian'] else '✗'}")
+        print('='*60)
+
+    print(f"\n✅ ClawHub Daily | {date} | 全部完成")
     return 0
 
 

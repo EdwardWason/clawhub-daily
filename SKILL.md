@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.5
+version: 2.0.6
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -12,11 +12,13 @@ description: |
   数据出口说明（用户知情同意）：
   - 飞书（Lark）：云文档 + 卡片消息（默认渠道，需 feishu_app_id/secret）
   - 腾讯 IMA 知识库：可选渠道，需 ima_client_id/api_key（默认关闭，需显式启用）
+  - Obsidian 本地 vault：inbox/clawhub-daily/ 子目录（默认开启，仅写入本地磁盘）
   - 本地文件：data/recommended/*.md 简报文件（默认开启，仅写入本地磁盘）
 
   凭证来源（优先级：CLI 参数 > 环境变量 > config.json）：
   - 飞书：FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_USER_OPEN_ID 环境变量，或 references/config.json
   - IMA：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY 环境变量，或 references/config.json
+  - Obsidian：OBSIDIAN_VAULT_PATH 环境变量（默认 E:\Obsidian\md\inbox\clawhub-daily）
   未配置任何凭证时仅生成本地文件，不执行外部推送。
   本技能不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量。
 
