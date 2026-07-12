@@ -1,4 +1,4 @@
-﻿"""
+"""
 IMA 知识库推送脚本
 将 ClawHub Daily 推荐简报推送到腾讯 IMA 知识库
 
@@ -62,7 +62,12 @@ def push_via_cli(kb_id, content, title):
 
 
 def push_via_api(api_endpoint, client_id, api_key, kb_id, content, title):
-    """通过 HTTP API 推送（方式 B）"""
+    """通过 HTTP API 推送（方式 B，强制 HTTPS 防止凭证明文传输）"""
+    if not api_endpoint.startswith("https://"):
+        return False, (
+            f"[Security] IMA API endpoint 必须使用 HTTPS，当前为 {api_endpoint}。"
+            "拒绝 HTTP 端点以防止 client_id/api_key 明文传输。"
+        )
     try:
         resp = requests.post(
             f"{api_endpoint.rstrip('/')}/knowledge/push",

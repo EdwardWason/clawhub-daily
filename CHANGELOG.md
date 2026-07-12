@@ -5,6 +5,19 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-07-11
+
+### Fixed (修复)
+- **Description-Behavior Mismatch**：description 只披露飞书推送，未说明 IMA 知识库和本地文件两个数据出口。现在 description 明确列出三个推送渠道及其默认状态（SkillSpector findings 修复）
+- **Missing User Warnings**：缺少数据推送知情说明。新增"⚠️ 数据推送知情说明"区块，列出所有推送渠道、所需凭证和数据内容，以及安全约束
+- **MCP Tool Poisoning (Tp4)**：push_to_ima.py 的 push_via_api 未验证端点协议，可能通过 HTTP 明文传输 client_id/api_key。新增 HTTPS 强制校验，拒绝 HTTP 端点
+
+### Changed (变更)
+- **frontmatter description 扩展**：增加"数据出口说明（用户知情同意）"段落，披露飞书/IMA/本地文件三个渠道
+- **SKILL.md 结构调整**：新增"⚠️ 数据推送知情说明"区块，含推送渠道表格和安全约束列表
+- **飞书/IMA 消息结构标题**：标注"默认推送渠道"和"可选渠道，需显式配置"
+- **核心能力描述**：从"飞书推送"改为"多渠道推送"，列出全部 4 个渠道
+
 ## [2.0.0] - 2026-07-11
 
 ### Changed (变更)

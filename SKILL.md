@@ -2,12 +2,18 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.0
+version: 2.0.1
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
   每日扫描 ClawHub 全球 Skill 平台（500 个 Skill），通过 6 维度全维度推荐算法
-  为用户推荐 8 个有价值、不重复、值得关注的 AI Agent Skill，并通过飞书推送完整简报。
+  为用户推荐 8 个有价值、不重复、值得关注的 AI Agent Skill，并通过多渠道推送完整简报。
+
+  数据出口说明（用户知情同意）：
+  - 飞书（Lark）：云文档 + 卡片消息（默认渠道，需 feishu_app_id/secret）
+  - 腾讯 IMA 知识库：可选渠道，需 ima_client_id/api_key（默认关闭，需显式启用）
+  - 本地文件：data/recommended/*.md 简报文件（默认开启，仅写入本地磁盘）
+  所有外部推送均需用户在 references/config.json 显式配置凭证后才会执行，未配置则仅生成本地文件。
 
   触发场景：
   - 用户希望每日/定时收到 ClawHub Skill 推荐简报
@@ -25,7 +31,7 @@ description: |
   - 痛点匹配去重展示：同一 Skill 只在第一个命中场景展示
   - changelog 展示：有最近变更摘要的 Skill 展示"最近变更"字段
   - 痛点加权：基于 7 大场景库个性化排序
-  - 飞书云文档 + Top 5 卡片消息推送（含云文档直达链接）
+  - 多渠道推送：飞书云文档 + Top 5 卡片消息 + IMA 知识库（可选）+ 本地 Markdown
   - 简报中文化：中文一句话 + 英文原文 `<details>` 折叠
 ---
 
@@ -51,7 +57,23 @@ description: |
 - **changelog 展示**：有最近变更摘要的 Skill 展示"最近变更"字段
 - **痛点匹配**：基于 7 大场景库（自动化办公/开发工具/内容创作/数据采集/AI 增强/中文支持/金融分析）加权
 - **简报中文化**：中文一句话解读 + 英文原文 `<details>` 折叠（0 token 消耗）
-- **飞书推送**：完整云文档（6 维度全部展示）+ Top 5 卡片消息（含云文档直达链接）
+- **多渠道推送**：飞书云文档 + Top 5 卡片消息（默认）+ IMA 知识库（可选）+ 本地 Markdown
+
+## ⚠️ 数据推送知情说明
+
+本技能会生成推荐简报并可能推送到以下外部服务，请用户知悉：
+
+| 推送渠道 | 默认状态 | 所需凭证 | 数据内容 |
+|---------|---------|---------|---------|
+| **本地文件** | 开启 | 无 | 完整简报 Markdown（data/recommended/*.md）|
+| **飞书云文档+卡片消息** | 需配置 | feishu_app_id / app_secret / user_open_id | 完整简报 + Top 5 摘要卡片 |
+| **腾讯 IMA 知识库** | 需配置 | ima_client_id / api_key / kb_id | 完整简报 Markdown |
+
+**安全约束**：
+- 未在 `references/config.json` 配置凭证的渠道不会执行推送，仅生成本地文件
+- IMA HTTP API 模式强制要求 HTTPS 端点（拒绝 HTTP，防止凭证明文传输）
+- 所有凭证从 `references/config.json` 读取（该文件已在 `.gitignore` 中，不会上传）
+- 不会收集或传输用户环境变量、系统信息或其他与推荐无关的数据
 
 ## 使用模式（二选一）
 
@@ -156,7 +178,7 @@ python clawhub_daily_executor.py
 
 ## 飞书/IMA 消息结构
 
-### 飞书卡片消息
+### 飞书卡片消息（默认推送渠道）
 
 包含：
 - **标题**：🦞 ClawHub 每日洞察 | 日期（维度）
@@ -167,7 +189,7 @@ python clawhub_daily_executor.py
 
 总字数控制在 **200-400 字**（让用户决定是否点开）。
 
-### IMA 知识库推送
+### IMA 知识库推送（可选渠道，需显式配置）
 
 完整 Markdown 简报，含：
 - 标题 + 元信息
