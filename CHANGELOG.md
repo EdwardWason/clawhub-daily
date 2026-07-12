@@ -5,6 +5,28 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-07-12
+
+### Added (新增)
+- **IMA 官方 OpenAPI 推送方式（方式 A，推荐）**：`push_to_ima.py` 新增 `push_via_official_api()` 函数，通过两步流程推送简报到 IMA 知识库
+  - Step 1: `POST /openapi/note/v1/import_doc` 创建笔记（Markdown 格式，content_format=1）
+  - Step 2: `POST /openapi/wiki/v1/add_knowledge` 添加到知识库（media_type=11，knowledge_base_id）
+  - 默认推送到 FIM 知识库（ID: `aFEGG-4YH3z_CaCSNVNC5dSJR5cutjlatcEQcNZjtlA=`）
+  - API 端点：`https://ima.qq.com`（注意：不是 `ima.tencent.com`）
+
+### Changed (变更)
+- **凭证优先级扩展**：CLI 参数 > 环境变量（`IMA_OPENAPI_CLIENTID`/`IMA_OPENAPI_APIKEY`，fallback `IMA_CLIENT_ID`/`IMA_API_KEY`）> config.json
+- **auto 模式优先级调整**：官方 OpenAPI > CLI > 自定义 HTTP API（之前是 CLI > HTTP API）
+- **kb_id 读取逻辑**：过滤 config.json 中的占位符（`<your_ima_kb_id>`），自动回退到 FIM 默认值
+- **SKILL.md IMA 推送说明更新**：文档化官方 OpenAPI 两步流程和凭证来源
+- **`--mode` 参数新增 `official` 选项**：可指定只用官方 OpenAPI 推送
+
+### Fixed (修复)
+- **IMA API 端点错误**：从 `https://ima.tencent.com` 改为 `https://ima.qq.com`（前者返回 401 skill auth failed）
+- **import_doc payload 格式错误**：`content_format` 从字符串 `"markdown"` 改为数字 `1`；移除 `title` 字段（IMA 从 content H1 提取标题）
+- **add_knowledge payload 字段名错误**：`kb_id` 改为 `knowledge_base_id`；新增 `title` 字段
+- **响应解析逻辑**：检查 `code` 字段是否为 0（IMA API 返回 `{"code":0, "data":{...}}`）
+
 ## [2.0.3] - 2026-07-12
 
 ### Fixed (修复)

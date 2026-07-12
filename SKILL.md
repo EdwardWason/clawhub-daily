@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.3
+version: 2.0.4
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -208,6 +208,14 @@ python clawhub_daily_executor.py
 总字数控制在 **200-400 字**（让用户决定是否点开）。
 
 ### IMA 知识库推送（可选渠道，需显式配置）
+
+通过 IMA 官方 OpenAPI 两步流程推送：
+1. `import_doc` 创建笔记（Markdown 格式）
+2. `add_knowledge` 添加到 FIM 知识库
+
+凭证来源：`IMA_OPENAPI_CLIENTID` / `IMA_OPENAPI_APIKEY` 环境变量（或 fallback `IMA_CLIENT_ID` / `IMA_API_KEY`）
+
+默认推送到 FIM 知识库（ID: `aFEGG-4YH3z_CaCS...`），可通过 `--kb-id` 或 config.json 覆盖。
 
 完整 Markdown 简报，含：
 - 标题 + 元信息
