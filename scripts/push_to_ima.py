@@ -6,7 +6,7 @@ IMA 知识库推送脚本
   python scripts/push_to_ima.py --recommendation data/recommended/2026-06-03.json
 
 凭证优先级：CLI 参数 > 环境变量 > references/config.json
-  - 环境变量：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY（fallback: IMA_CLIENT_ID / IMA_API_KEY）
+  - 环境变量：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY
   - config.json：ima_client_id / ima_api_key / ima_kb_id
 
 IMA 推送方式（auto 模式按优先级尝试）：
@@ -19,10 +19,6 @@ IMA 推送方式（auto 模式按优先级尝试）：
 方式 B：调用 ima-skill CLI
   - 前置条件：已安装 ima-skill（`pip install ima-skill` 或 `npm i -g ima-skill`）
   - 自动检测命令，subprocess 调用
-
-方式 C：直接调用自定义 HTTP API
-  - 需要在 config.json 中配置 ima_api_endpoint
-  - 自定义 HTTP 协议（请参考 IMA 官方文档）
 """
 import argparse
 import json
@@ -157,35 +153,6 @@ def push_via_cli(kb_id, content, title):
     return False, "未找到可用的 ima CLI"
 
 
-def push_via_api(api_endpoint, client_id, api_key, kb_id, content, title):
-    """通过自定义 HTTP API 推送（方式 C，强制 HTTPS 防止凭证明文传输）"""
-    if not api_endpoint.startswith("https://"):
-        return False, (
-            f"[Security] IMA API endpoint 必须使用 HTTPS，当前为 {api_endpoint}。"
-            "拒绝 HTTP 端点以防止 client_id/api_key 明文传输。"
-        )
-    try:
-        resp = requests.post(
-            f"{api_endpoint.rstrip('/')}/knowledge/push",
-            json={
-                "client_id": client_id,
-                "api_key": api_key,
-                "kb_id": kb_id,
-                "title": title,
-                "content": content,
-                "format": "markdown"
-            },
-            timeout=30
-        )
-        if resp.status_code == 200:
-            print(f"  [IMA-API] 推送成功")
-            return True, resp.text
-        else:
-            return False, f"HTTP {resp.status_code}: {resp.text}"
-    except Exception as e:
-        return False, f"请求异常: {e}"
-
-
 def main():
     parser = argparse.ArgumentParser(description="推送推荐到 IMA 知识库")
     parser.add_argument("--recommendation", required=True, help="daily_recommend.py 生成的 JSON")
@@ -193,9 +160,8 @@ def main():
     parser.add_argument("--client-id", default=None, help="IMA client_id（优先级：CLI > 环境变量 > config）")
     parser.add_argument("--api-key", default=None, help="IMA api_key（优先级：CLI > 环境变量 > config）")
     parser.add_argument("--kb-id", default=None, help="IMA kb_id（默认：FIM 知识库）")
-    parser.add_argument("--api-endpoint", default=None, help="IMA API endpoint（方式 C 自定义 HTTP 模式）")
-    parser.add_argument("--mode", choices=["official", "cli", "api", "auto"], default="auto",
-                        help="推送方式：official（官方OpenAPI）/ cli（CLI）/ api（自定义HTTP）/ auto（自动检测，默认）")
+    parser.add_argument("--mode", choices=["official", "cli", "auto"], default="auto",
+                        help="推送方式：official（官方OpenAPI）/ cli（CLI）/ auto（自动检测，默认）")
     args = parser.parse_args()
 
     # 凭证优先级：CLI 参数 > 环境变量 > config.json
@@ -203,13 +169,11 @@ def main():
     client_id = (
         args.client_id
         or os.environ.get("IMA_OPENAPI_CLIENTID")
-        or os.environ.get("IMA_CLIENT_ID")
         or config.get("ima_client_id")
     )
     api_key = (
         args.api_key
         or os.environ.get("IMA_OPENAPI_APIKEY")
-        or os.environ.get("IMA_API_KEY")
         or config.get("ima_api_key")
     )
     # kb_id：CLI 参数 > config.json > FIM 默认值（过滤占位符）
@@ -217,13 +181,11 @@ def main():
     if config_kb_id and config_kb_id.startswith("<"):
         config_kb_id = None  # 占位符，忽略
     kb_id = args.kb_id or config_kb_id or DEFAULT_FIM_KB_ID
-    api_endpoint = args.api_endpoint or config.get("ima_api_endpoint")
 
     if not client_id or not api_key:
         print("[Error] 缺少 IMA 凭证（client_id / api_key）。")
         print("  优先级：CLI 参数 > 环境变量 > config.json")
         print("  环境变量：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY")
-        print("  fallback：IMA_CLIENT_ID / IMA_API_KEY")
         return 1
 
     print(f"[IMA] 凭证来源: client_id={'CLI/ENV' if args.client_id or os.environ.get('IMA_OPENAPI_CLIENTID') else 'config'}")
@@ -271,24 +233,16 @@ def main():
 
     # 决定推送方式
     if args.mode == "auto":
-        # 优先级：官方 OpenAPI > CLI > 自定义 HTTP API
+        # 优先级：官方 OpenAPI > CLI
         print("  [Info] auto 模式：优先尝试官方 OpenAPI...")
         success, msg = push_via_official_api(client_id, api_key, kb_id, content, title)
         if not success:
             print(f"  [Info] 官方 API 失败，尝试 CLI...")
             success, msg = push_via_cli(kb_id, content, title)
-        if not success and api_endpoint:
-            print(f"  [Info] CLI 失败，尝试自定义 HTTP API: {api_endpoint}")
-            success, msg = push_via_api(api_endpoint, client_id, api_key, kb_id, content, title)
     elif args.mode == "official":
         success, msg = push_via_official_api(client_id, api_key, kb_id, content, title)
-    elif args.mode == "cli":
+    else:  # cli
         success, msg = push_via_cli(kb_id, content, title)
-    else:  # api
-        if not api_endpoint:
-            print("[Error] API 模式需要 --api-endpoint 或 config.json 中的 ima_api_endpoint")
-            return 1
-        success, msg = push_via_api(api_endpoint, client_id, api_key, kb_id, content, title)
 
     if success:
         print(f"[IMA] 推送成功 ✓")
@@ -299,8 +253,7 @@ def main():
         print("  1. 确认 IMA 凭证有效（环境变量 IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY）")
         print("  2. 方式 A（推荐）：官方 OpenAPI，凭证从环境变量读取")
         print("  3. 方式 B：安装 ima-skill CLI（`pip install ima-skill`）")
-        print("  4. 方式 C：在 config.json 配置 ima_api_endpoint（自定义 HTTP）")
-        print("  5. 详细文档：https://github.com/EdwardWason/clawhub-daily")
+        print("  4. 详细文档：https://github.com/EdwardWason/clawhub-daily")
         return 1
 
 

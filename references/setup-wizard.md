@@ -1,4 +1,4 @@
-﻿# 首次安装向导（Setup Wizard）
+# 首次安装向导（Setup Wizard）
 
 > 适用版本：clawhub-daily v1.0.0+
 > 用户首次安装本技能后必读
@@ -17,8 +17,6 @@ ClawHub Daily 提供 **2 种使用模式**，请根据你的需求选择 A 或 B
 - "每日推荐"
 - "ClawHub 日报"
 - "今天有什么好 Skill"
-- "帮我推荐技能"
-- "扫描 ClawHub"
 
 **示例对话**：
 ```

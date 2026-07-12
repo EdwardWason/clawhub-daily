@@ -1,6 +1,8 @@
 # ClawHub Daily Skill 洞察
 
-> 每日扫描 ClawHub 全球 AI Agent Skill 平台，4 维度全维度精选简报，自动推送飞书
+> 每日扫描 ClawHub 全球 AI Agent Skill 平台，6 维度全维度精选简报
+
+> **⚠️ 数据出口说明**：简报默认写入本地文件；若配置了飞书/IMA 凭证，会推送到飞书云文档和腾讯 IMA 知识库。未配置凭证时仅生成本地文件，不执行外部推送。详见 [SKILL.md](SKILL.md) 的"数据出口说明"。
 
 > **📌 命名说明**：本项目在 GitHub 仓库为 `clawhub-daily`；在 ClawHub 市场注册名为 `skill-daily`（因 ClawHub 保护 `clawhub-` 命名空间）。两个名字指向同一个 Skill。
 

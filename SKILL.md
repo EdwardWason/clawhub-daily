@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.4
+version: 2.0.5
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -104,7 +104,6 @@ description: |
 - "每日推荐"
 - "ClawHub 日报"
 - "今天有什么好 Skill"
-- "扫描 ClawHub"
 
 ### 模式 B：Cron 定时任务模式 ⏰
 
@@ -213,7 +212,7 @@ python clawhub_daily_executor.py
 1. `import_doc` 创建笔记（Markdown 格式）
 2. `add_knowledge` 添加到 FIM 知识库
 
-凭证来源：`IMA_OPENAPI_CLIENTID` / `IMA_OPENAPI_APIKEY` 环境变量（或 fallback `IMA_CLIENT_ID` / `IMA_API_KEY`）
+凭证来源：`IMA_OPENAPI_CLIENTID` / `IMA_OPENAPI_APIKEY` 环境变量（或 `references/config.json`）
 
 默认推送到 FIM 知识库（ID: `aFEGG-4YH3z_CaCS...`），可通过 `--kb-id` 或 config.json 覆盖。
 

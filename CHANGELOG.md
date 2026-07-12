@@ -5,6 +5,23 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-07-12
+
+### Removed (移除)
+- **删除方式 C（自定义 HTTP API）整个函数**：`push_via_api()` 函数将凭证发送到用户配置的 HTTPS 端点，被 SkillSpector 标记为 Critical（Tainted flow: credential → network output）。方式 C 已不再需要，方式 A（官方 OpenAPI）已完全覆盖 IMA 推送需求。
+- **删除 fallback 环境变量 `IMA_CLIENT_ID`/`IMA_API_KEY`**：只保留官方变量 `IMA_OPENAPI_CLIENTID`/`IMA_OPENAPI_APIKEY`，消除"未文档化的凭证来源"（Scope Creep finding）。
+- **删除 `--api-endpoint` 参数和 `--mode api` 选项**：方式 C 已删除，不再需要。
+- **删除触发词 "扫描 ClawHub"**：SkillSpector 标记为 Vague Triggers（语义接近普通扫描请求，易误激活）。触发词从 4 个缩减为 3 个。
+
+### Fixed (修复)
+- **触发词残留清理**：`references/setup-wizard.md` 中的 "帮我推荐技能" 和 "扫描 ClawHub" 在 v2.0.3 漏改，本次彻底清理。
+- **README summary 行**：删除"自动推送飞书"措辞，新增"⚠️ 数据出口说明"警告区块，明确告知外部传输行为。
+
+### Changed (变更)
+- `push_to_ima.py` 重写：删除 `push_via_api()` 函数、`--api-endpoint` 参数、`--mode api` 选项、fallback 环境变量。代码从 308 行精简到 262 行。
+- auto 模式优先级简化：官方 OpenAPI > CLI（删除了"自定义 HTTP API"这一级）。
+- SKILL.md IMA 推送说明：删除 fallback 变量说明。
+
 ## [2.0.4] - 2026-07-12
 
 ### Added (新增)
