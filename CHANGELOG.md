@@ -5,6 +5,24 @@ All notable changes to **clawhub-daily** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-07-12
+
+### Fixed (修复)
+- **凭证泄露修复（Critical）**：删除 `references/config.local.json`（包含真实飞书凭证，被 ClawHub publish 上传）。该文件虽在 `.gitignore` 中（未进 GitHub），但 ClawHub publish 发布整个目录。已删除文件，用户需在本地重建配置并轮换已泄露的飞书凭证
+- **Env Variable Harvesting (High)**：删除临时脚本 `_check_github.py`（包含 `os.environ.get("GH_TOKEN")`，与技能功能无关）
+- **MCP Tool Poisoning (Tp4, High)**：删除 `publish_all.ps1`（开发工具，包含 GH_TOKEN 环境变量读取，不属于技能运行时代码）
+- **Description-Behavior Mismatch**：description 只说 config.json 读取凭证，但 push_to_feishu.py 还接受 FEISHU_APP_ID 等环境变量。description 现在明确披露凭证来源优先级：CLI 参数 > 环境变量 > config.json
+
+### Changed (变更)
+- **description 新增"凭证来源"段落**：披露飞书/IMA 凭证的环境变量名称，并明确声明"不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量"
+- **SKILL.md 安全约束更新**：添加 config.local.json 在 .gitignore 中的说明，添加不读取 GH_TOKEN 的声明
+- **prompt-templates.md 添加数据推送知情说明**：Cron 模板顶部新增"⚠️ 数据推送知情说明"区块，说明数据流向和凭证要求
+
+### Removed (移除)
+- `_check_github.py`：临时调试脚本，不属于技能代码
+- `publish_all.ps1`：开发工具脚本，不属于技能运行时代码
+- `references/config.local.json`：包含真实凭证，不应发布
+
 ## [2.0.1] - 2026-07-11
 
 ### Fixed (修复)

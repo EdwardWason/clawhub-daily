@@ -2,7 +2,7 @@
 name: clawhub-daily
 slug: clawhub-daily-ai
 displayName: ClawHub Daily
-version: 2.0.1
+version: 2.0.2
 summary: Daily ClawHub Skill insights with 6-dimension recommendation
 license: MIT-0
 description: |
@@ -13,7 +13,12 @@ description: |
   - 飞书（Lark）：云文档 + 卡片消息（默认渠道，需 feishu_app_id/secret）
   - 腾讯 IMA 知识库：可选渠道，需 ima_client_id/api_key（默认关闭，需显式启用）
   - 本地文件：data/recommended/*.md 简报文件（默认开启，仅写入本地磁盘）
-  所有外部推送均需用户在 references/config.json 显式配置凭证后才会执行，未配置则仅生成本地文件。
+
+  凭证来源（优先级：CLI 参数 > 环境变量 > config.json）：
+  - 飞书：FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_USER_OPEN_ID 环境变量，或 references/config.json
+  - IMA：IMA_OPENAPI_CLIENTID / IMA_OPENAPI_APIKEY 环境变量，或 references/config.json
+  未配置任何凭证时仅生成本地文件，不执行外部推送。
+  本技能不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量。
 
   触发场景：
   - 用户希望每日/定时收到 ClawHub Skill 推荐简报
@@ -70,10 +75,12 @@ description: |
 | **腾讯 IMA 知识库** | 需配置 | ima_client_id / api_key / kb_id | 完整简报 Markdown |
 
 **安全约束**：
-- 未在 `references/config.json` 配置凭证的渠道不会执行推送，仅生成本地文件
+- 未配置凭证的渠道不会执行推送，仅生成本地文件
+- 凭证优先级：CLI 参数 > 环境变量 > `references/config.json`
+- `references/config.json` 和 `references/config.local.json` 均在 `.gitignore` 中，不会上传到 GitHub
 - IMA HTTP API 模式强制要求 HTTPS 端点（拒绝 HTTP，防止凭证明文传输）
-- 所有凭证从 `references/config.json` 读取（该文件已在 `.gitignore` 中，不会上传）
-- 不会收集或传输用户环境变量、系统信息或其他与推荐无关的数据
+- 本技能不读取 GH_TOKEN、GITHUB_TOKEN 或其他与推荐功能无关的环境变量
+- 不会收集或传输用户系统信息或其他与推荐无关的数据
 
 ## 使用模式（二选一）
 

@@ -1,7 +1,7 @@
 {
   "name": "clawhub-daily",
   "description": "Daily ClawHub Skill insights: 500 skills scanned, 6-dimension all-daily recommendation (trending/quality/newcomers/panorama/actively_maintained/verified), 7 pain-points, 7-day cross-dimension dedup, fallback strategy, changelog display, multi-channel push (Lark/Feishu/IMA/Local)",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": {
     "name": "clawhub-daily contributors"
   },
